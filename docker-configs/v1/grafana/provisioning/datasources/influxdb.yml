@@ -1,0 +1,23 @@
+# config file version
+apiVersion: 1
+
+# list of datasources that should be deleted from the database
+deleteDatasources:
+  - name: telegraf
+    orgId: 1
+
+datasources:
+  - name: telegraf
+    type: influxdb
+    access: proxy
+    orgId: 1
+    uid: telegraf_unique_uid
+    url: http://influxdb.db:8086
+    secureJsonData:
+      token: home-token
+    jsonData:
+      version: Flux
+      organization: home-org
+      defaultBucket: home-bucket
+      httpMode: POST
+    editable: true

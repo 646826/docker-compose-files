@@ -1,0 +1,54 @@
+version: "3.5"
+
+services:
+
+  traefik:
+    container_name: traefik
+    image: traefik:latest
+    restart: always
+    command:
+      - --log.level=DEBUG
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entryPoints.https.address=:443
+      - --entryPoints.53-tcp.address=:53
+      - --entryPoints.53-udp.address=:53/udp
+      - --entrypoints.mqtt.address=:1883
+    ports:
+      - 80:80
+      - 8080:8080
+      - 443:443
+      - 53:53
+      - 1883:1883
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - web
+      - db
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=(HostRegexp(`traefik.{.*}.ru`) || Host(`traefik.${my_local}`) || Host(`traefik.localhost`))
+      - traefik.http.routers.api.service=api@internal
+      - traefik.http.routers.api.entrypoints=web
+      - traefik.http.middlewares.my-auth.basicauth.users=admin:$$apr1$$AHFDNExU$$Oa0PIuRwGbsI4BJ7ouiYS0
+      - traefik.http.routers.api.middlewares=my-auth
+
+  whoami:
+    image: "traefik/whoami"
+    restart: unless-stopped
+    container_name: "simple-service"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami.rule=(HostRegexp(`whoami.{.*}.ru`) || Host(`whoami.${my_local}`) || Host(`whoami.localhost`))
+      - traefik.http.routers.whoami.entrypoints=web
+      - traefik.http.routers.whoami.middlewares=my-auth
+    networks:
+      - web
+      
+networks:
+  web:
+    external: true
+  db:
+    external: true    

@@ -1,0 +1,28 @@
+version: "3.5"
+
+services:
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    restart: always
+    user: "1000:1000"
+    volumes:
+      - ${PWD}/docker-configs/v1/grafana/provisioning:/etc/grafana/provisioning
+      - ${PWD}/docker-data/v1/grafana/data:/var/lib/grafana
+    env_file: 
+      - ${PWD}/docker-configs/v1/grafana/grafana.env
+    networks:
+      - web
+      - db
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=(HostRegexp(`grafana.{.*}.ru`) || Host(`grafana.${my_local}`) || Host(`grafana.localhost`))
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+      - traefik.http.routers.grafana.entrypoints=web
+
+networks:
+  web:
+    external: true
+  db:
+    external: true    

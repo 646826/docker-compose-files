@@ -1,0 +1,28 @@
+version: "3.5"
+
+services:
+
+  influxdb:
+    container_name: influxdb
+    image: influxdb:latest
+    restart: always    
+    env_file: 
+      - ${PWD}/docker-configs/v1/influxdb/influx.env
+    volumes:
+      - ${PWD}/docker-data/v1/influxdb/data:/var/lib/influxdb2
+      - ${PWD}/docker-data/v1/influxdb/config:/etc/influxdb2
+      # - ${PWD}/docker-configs/v1/influxdb/scripts:/docker-entrypoint-initdb.d ## Need to figure out why it doesn't work
+    labels:
+      - com.ouroboros.enable=true
+      - traefik.enable=true
+      - traefik.docker.network=db
+      - traefik.http.routers.influxdb.rule=(HostRegexp(`influxdb.{.*}.ru`) || Host(`influxdb.${my_local}`) || Host(`influxdb.localhost`))
+      - traefik.http.routers.influxdb.entrypoints=web
+      - traefik.http.routers.influxdb.service=influxdb
+      - traefik.http.services.influxdb.loadbalancer.server.port=8086
+    networks:
+      - db
+      
+networks:
+  db:
+    external: true   
