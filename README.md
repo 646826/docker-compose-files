@@ -1,3 +1,7 @@
+# Docker Compose Files  
+All applications are configured to work through Traefik.   
+Added authorization for services that do not use their own authorization.
+
 # Docker-compose files that are committed
 
 | [Traefik](https://github.com/traefik/traefik)  | [InfluxDB 2](https://www.influxdata.com/products/influxdb/) | [Grafana](https://grafana.com/) 
