@@ -9,7 +9,7 @@ Added authorization for services that do not use their own authorization.
 | **Local URL:** http://traefik.localhost/ | **Local URL:** http://influxdb.localhost/  | **Local URL:** http://grafana.localhost/ |
 | **Login:** admin  | **Login:** admin | **Login:** admin |
 | **Password:** bc183SEgTbuNqxLyuGTd2s | **Password:** bc183SEgTbuNqxLyuGTd2s | **Password:** bc183SEgTbuNqxLyuGTd2s |
-| **Checked on version:** Traefik 2.4.13  | **Checked on version:** Traefik 2.4.13   | **Checked on version:** Grafana v8.1.1 |  
+| **Checked on version:** Traefik 2.4.13  | **Checked on version:** InfluxDB 2.0.7   | **Checked on version:** Grafana v8.1.1 |  
 
 | [Portainer](https://www.portainer.io/) | [Telegraf](https://www.influxdata.com/time-series-platform/telegraf/) |
 | ------------- | ------------- |
