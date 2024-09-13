@@ -24,6 +24,7 @@ Added authorization for services that do not use their own authorization.
 - [ ] eclipse-mosquitto
 - [ ] netdata
 - [ ] k3s
+- [ ] k6.io
 
 # To start  
 
