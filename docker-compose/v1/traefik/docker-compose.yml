@@ -20,7 +20,7 @@ services:
       - 80:80
       - 8080:8080
       - 443:443
-      - 53:53
+      - 8053:53
       - 1883:1883
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
