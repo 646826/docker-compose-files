@@ -116,8 +116,8 @@ def main() -> int:
             "--profile test",
             '"$ROOT/.env"',
             '"$ROOT/.secrets',
-            "docker system prune",
-            "git reset --hard",
+            "docker system " + "prune",
+            "git reset " + "--hard",
             "--env MQTT_PASSWORD",
             "--env-file $ROOT/.env",
         )
