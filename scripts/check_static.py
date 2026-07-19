@@ -34,6 +34,14 @@ def service_block(compose: str, service: str) -> str:
     return match.group(0) if match else ""
 
 
+def make_target_block(makefile: str, target: str) -> str:
+    match = re.search(
+        rf"(?ms)^{re.escape(target)}:.*?(?=^[a-zA-Z0-9_-]+:|\Z)",
+        makefile,
+    )
+    return match.group(0) if match else ""
+
+
 def check_images(compose: str) -> None:
     images = re.findall(r"(?m)^\s{4}image:\s*['\"]?([^'\"#\s]+)", compose)
     if not images:
@@ -123,8 +131,11 @@ def main() -> int:
         "config/k6/smoke.js",
         "scripts/init.sh",
         "scripts/check.sh",
+        "scripts/check_images.py",
         "scripts/test_init.py",
+        "scripts/test_check_images.py",
         ".github/workflows/ci.yml",
+        ".github/workflows/images.yml",
         "renovate.json",
     )
     for path in required_files:
@@ -193,10 +204,15 @@ def main() -> int:
             error("Telegraf must not mount the Docker socket directly")
 
         grafana_block = service_block(compose, "grafana")
-        if "GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password" not in grafana_block:
+        if (
+            "GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password"
+            not in grafana_block
+        ):
             error("Grafana must use the official __FILE secret convention")
         if "export GF_SECURITY_ADMIN_PASSWORD=" in grafana_block:
-            error("Grafana bootstrap must not duplicate the official password-file handling")
+            error(
+                "Grafana bootstrap must not duplicate the official password-file handling"
+            )
 
         portainer_block = service_block(compose, "portainer")
         if "command: --http-enabled" not in portainer_block:
@@ -225,31 +241,78 @@ def main() -> int:
 
     makefile = read_required("Makefile")
     if makefile:
-        for target in ("init", "check", "core", "up", "full", "monitoring", "netdata", "tools", "iot", "k6", "pull", "ps", "logs", "down"):
-            if not re.search(rf"(?m)^{target}:.*$", makefile):
+        required_targets = (
+            "init",
+            "check",
+            "check-images",
+            "core",
+            "up",
+            "full",
+            "monitoring",
+            "netdata",
+            "tools",
+            "iot",
+            "k6",
+            "pull",
+            "ps",
+            "logs",
+            "down",
+        )
+        for target in required_targets:
+            if not re.search(rf"(?m)^{re.escape(target)}:.*$", makefile):
                 error(f"Makefile target is missing: {target}")
-        down_match = re.search(r"(?ms)^down:.*?(?=^[a-zA-Z0-9_-]+:|\Z)", makefile)
-        down_block = down_match.group(0) if down_match else ""
+
+        check_block = make_target_block(makefile, "check")
+        if "scripts/check_images.py" in check_block or "check-images" in check_block:
+            error("make check must remain independent of container registries")
+
+        check_images_block = make_target_block(makefile, "check-images")
+        if "python3 scripts/check_images.py" not in check_images_block:
+            error("make check-images must run scripts/check_images.py")
+
+        down_block = make_target_block(makefile, "down")
         if re.search(r"(?:^|\s)(?:-v|--volumes)(?:\s|$)", down_block):
             error("make down must preserve named volumes")
         if "DEFAULT_PROFILES := --profile monitoring --profile tools" not in makefile:
             error("make up must preserve the exact legacy monitoring + tools scope")
-        if "DEFAULT_PROFILES := --profile monitoring --profile tools --profile netdata" in makefile:
+        if (
+            "DEFAULT_PROFILES := --profile monitoring --profile tools --profile netdata"
+            in makefile
+        ):
             error("Netdata must remain opt-in and not join the legacy-equivalent default")
 
         for target in ("core", "up", "full", "monitoring", "netdata", "tools", "iot"):
-            target_match = re.search(
-                rf"(?ms)^{target}:.*?(?=^[a-zA-Z0-9_-]+:|\Z)", makefile
-            )
-            target_block = target_match.group(0) if target_match else ""
+            target_block = make_target_block(makefile, target)
             if "--remove-orphans" in target_block:
                 error(
                     f"make {target} must not remove services started through another profile"
                 )
 
+    check_script = read_required("scripts/check.sh")
+    if check_script and "python3 scripts/test_check_images.py" not in check_script:
+        error("scripts/check.sh must run image verification unit tests")
+
+    image_workflow = read_required(".github/workflows/images.yml")
+    if image_workflow:
+        if "make check-images" not in image_workflow:
+            error("image workflow must run make check-images")
+        if "docker buildx version" not in image_workflow:
+            error("image workflow must verify Docker Buildx availability")
+        if "pull_request:" not in image_workflow:
+            error("image workflow must run for relevant pull requests")
+        if "schedule:" not in image_workflow:
+            error("image workflow must periodically recheck pinned tags")
+        if not re.search(r"(?m)^permissions:\s*\n\s+contents:\s+read\s*$", image_workflow):
+            error("image workflow must use read-only repository permissions")
+
     readme = read_required("README.md")
-    if readme and "mosquitto:1883" not in readme:
-        error("README must document the internal MQTT broker address for openHAB")
+    if readme:
+        if "mosquitto:1883" not in readme:
+            error("README must document the internal MQTT broker address for openHAB")
+        if "make check-images" not in readme:
+            error("README must document registry-backed image verification")
+        if "linux/amd64" not in readme or "linux/arm64" not in readme:
+            error("README must name both maintained image platforms")
 
     k3s_doc = read_required("docs/K3S.md")
     if k3s_doc:
@@ -312,7 +375,11 @@ def main() -> int:
             if not telegraf.get("secretstores", {}).get("docker"):
                 error("Telegraf Docker secret store is missing")
             outputs = telegraf.get("outputs", {}).get("influxdb_v2", [])
-            if not outputs or "@{docker_secretstore:influxdb_token}" not in outputs[0].get("token", ""):
+            if (
+                not outputs
+                or "@{docker_secretstore:influxdb_token}"
+                not in outputs[0].get("token", "")
+            ):
                 error("Telegraf InfluxDB output does not use the mounted secret")
             if not telegraf.get("inputs", {}).get("docker"):
                 error("Telegraf Docker input is missing")
