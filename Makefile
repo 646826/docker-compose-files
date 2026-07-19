@@ -16,7 +16,7 @@ init: ## Create .env and missing local secrets without overwriting existing valu
 check: ## Validate static files, bootstrap behavior, shell scripts, and the full Compose model
 	@./scripts/check.sh
 
-check-images: init ## Verify pinned image tags and amd64/arm64 registry manifests
+check-images: ## Verify pinned image tags and amd64/arm64 registry manifests
 	@python3 scripts/check_images.py
 
 config: init ## Print the fully rendered Compose model for every profile
