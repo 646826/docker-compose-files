@@ -1,0 +1,25 @@
+services:
+  influxdb:
+    volumes:
+      - type: tmpfs
+        target: /var/lib/influxdb2
+        tmpfs:
+          mode: 0777
+      - type: tmpfs
+        target: /etc/influxdb2
+        tmpfs:
+          mode: 0777
+
+  grafana:
+    volumes:
+      - type: tmpfs
+        target: /var/lib/grafana
+        tmpfs:
+          mode: 0777
+
+  portainer:
+    volumes:
+      - type: tmpfs
+        target: /data
+        tmpfs:
+          mode: 0777
