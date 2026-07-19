@@ -45,7 +45,7 @@ if [ "${1:-}" = "run" ]; then
     *" --entrypoint /bin/ash "*)
       IFS= read -r password
       [ -n "$password" ]
-      printf 'runtime:$argon2id$v=19$m=19456,t=2,p=1$ZmFrZXNhbHQ$ZmFrZWhhc2g\n'
+      printf 'runtime:$7$220000$ZmFrZXNhbHQ=$ZmFrZWhhc2g=\n'
       exit 0
       ;;
     *" --entrypoint mosquitto_pub "*)
@@ -241,6 +241,8 @@ class IoTRuntimeHarnessTests(unittest.TestCase):
         self.assertIn("--entrypoint mosquitto_pub", docker_log)
         self.assertGreaterEqual(docker_log.count("--entrypoint mosquitto_sub"), 2)
         self.assertIn("-o /run/mosquitto-client.conf", docker_log)
+        self.assertIn("mosquitto_passwd -H sha512-pbkdf2 -I 220000 -c", docker_log)
+        self.assertNotIn("mosquitto_passwd -H argon2id", docker_log)
         self.assertNotRegex(docker_log, r"(^| )-P( |$)")
         self.assertNotIn("p" * 36, docker_log)
         curl_log = self.curl_log.read_text(encoding="utf-8")
