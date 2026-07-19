@@ -53,7 +53,8 @@ write_random_hex() {
   path=$1
   bytes=$2
   if [ ! -f "$path" ]; then
-    openssl rand -hex "$bytes" >"$path"
+    value=$(openssl rand -hex "$bytes")
+    printf '%s' "$value" >"$path"
   fi
 }
 
@@ -63,6 +64,29 @@ write_text_if_missing() {
   if [ ! -f "$path" ]; then
     printf '%s\n' "$value" >"$path"
   fi
+}
+
+normalize_single_line_secret() {
+  path=$1
+  label=$2
+  [ -f "$path" ] || return 0
+
+  # Command substitution removes only trailing newlines. Embedded line endings
+  # remain and are rejected, while an old generated token ending in LF/CRLF is
+  # normalized without changing the credential value.
+  value=$(cat "$path")
+  carriage_return=$(printf '\r')
+  case "$value" in
+    *"$carriage_return") value=${value%"$carriage_return"} ;;
+  esac
+  case "$value" in
+    ''|*"$carriage_return"*|*'
+'*)
+      printf '%s must contain exactly one non-empty line; refusing to modify it.\n' "$label" >&2
+      exit 1
+      ;;
+  esac
+  printf '%s' "$value" >"$path"
 }
 
 require_value_match() {
@@ -131,6 +155,7 @@ write_random_hex "$SECRETS_DIR/influxdb_token" 32
 write_random_hex "$SECRETS_DIR/grafana_admin_password" 24
 write_random_hex "$SECRETS_DIR/traefik_password" 18
 write_random_hex "$SECRETS_DIR/mosquitto_password" 18
+normalize_single_line_secret "$SECRETS_DIR/influxdb_token" influxdb_token
 
 if [ ! -f "$SECRETS_DIR/traefik_users" ]; then
   ensure_docker
