@@ -177,6 +177,8 @@ if [ ! -f "$SECRETS_DIR/traefik_users" ]; then
   esac
 fi
 
+# mosquitto_passwd -U is intentionally not executed: the official Mosquitto
+# 2.1.2 images do not compile Argon2 support, so create a supported PBKDF2 file.
 if [ ! -f "$SECRETS_DIR/mosquitto_passwords" ]; then
   ensure_docker
   mosquitto_record=$(
