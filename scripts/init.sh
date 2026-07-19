@@ -189,7 +189,7 @@ if [ ! -f "$SECRETS_DIR/mosquitto_passwords" ]; then
           umask 077
           IFS= read -r password
           printf "%s:%s\n" "$MOSQUITTO_USERNAME" "$password" >/tmp/mosquitto_passwords
-          mosquitto_passwd -U /tmp/mosquitto_passwords
+          mosquitto_passwd -H argon2id -U /tmp/mosquitto_passwords
           cat /tmp/mosquitto_passwords
         '
   )
