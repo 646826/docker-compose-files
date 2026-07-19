@@ -160,7 +160,7 @@ normalize_single_line_secret "$SECRETS_DIR/influxdb_token" influxdb_token
 if [ ! -f "$SECRETS_DIR/traefik_users" ]; then
   ensure_docker
   traefik_record=$(
-    cat "$SECRETS_DIR/traefik_password" |
+    printf '%s\n' "$(cat "$SECRETS_DIR/traefik_password")" |
       docker run --rm -i \
         --entrypoint htpasswd \
         "$HTPASSWD_IMAGE" \
@@ -180,7 +180,7 @@ fi
 if [ ! -f "$SECRETS_DIR/mosquitto_passwords" ]; then
   ensure_docker
   mosquitto_record=$(
-    cat "$SECRETS_DIR/mosquitto_password" |
+    printf '%s\n' "$(cat "$SECRETS_DIR/mosquitto_password")" |
       docker run --rm -i \
         --env MOSQUITTO_USERNAME="$mosquitto_username" \
         --entrypoint /bin/ash \
