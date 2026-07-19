@@ -17,8 +17,8 @@ Deleting a secret from the latest commit does not remove it from Git history. Hi
 
 - `.env` is for non-secret deployment settings only.
 - Generated credentials live under an ignored `.secrets/` directory with mode `0700`. Operator-only plaintext files use mode `0600`. Files mounted as Compose secrets use mode `0644` because file-backed secrets are bind mounts and Compose cannot remap their UID/GID; the private parent directory still prevents access by other host users.
-- Each service receives only its explicitly granted Compose secrets. Grafana uses the image's official `GF_SECURITY_ADMIN_PASSWORD__FILE` convention, Traefik Basic Auth uses bcrypt with cost 12, and Mosquitto credentials use Argon2id.
-- `scripts/init.sh` creates only missing files and never silently rotates an existing deployment. Mosquitto hashing uses `mosquitto_passwd -U`, so the plaintext password is read from standard input rather than exposed in process arguments.
+- Each service receives only its explicitly granted Compose secrets. Grafana uses the image's official `GF_SECURITY_ADMIN_PASSWORD__FILE` convention, Traefik Basic Auth uses bcrypt with cost 12, and Mosquitto credentials use SHA512-PBKDF2 with 220000 iterations.
+- `scripts/init.sh` creates only missing files and never silently rotates an existing deployment. Mosquitto hashing uses `mosquitto_passwd -H sha512-pbkdf2 -I 220000 -c`; the password and confirmation are supplied through standard input rather than exposed in process arguments.
 - After initialization, username settings and their generated password files are treated as one credential. The bootstrap rejects username drift instead of silently producing a mismatched deployment; rotate an active service account through the application before changing its local files.
 - Mosquitto copies its read-only hash secret into a private runtime `tmpfs`, applies UID/GID `1883` and mode `0600`, and authenticates through the Mosquitto 2.1 password-file plugin.
 - The default MQTT listener on port `1883` is authenticated but not encrypted. Keep it on a trusted LAN; use a deployment-specific TLS listener and firewall rules for untrusted networks.
