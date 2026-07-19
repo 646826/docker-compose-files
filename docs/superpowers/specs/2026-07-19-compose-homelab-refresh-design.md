@@ -16,7 +16,7 @@ Modernize the repository into a secure, reproducible Linux homelab for `amd64` a
 
 ## Architecture
 
-The repository contains one root `compose.yaml` using the current Compose Specification. Services share purpose-specific networks:
+The repository contains one root `compose.yaml` using the current Compose Specification and the `docker compose` plugin. Services share purpose-specific networks:
 
 - `proxy`: Traefik and HTTP applications.
 - `backend`: internal metrics traffic between InfluxDB, Telegraf, and Grafana.
@@ -30,21 +30,22 @@ Traefik and a small `whoami` endpoint form the profile-free core. `docker-socket
 | Profile | Services | Entry command |
 | --- | --- | --- |
 | Core (no profile) | docker-socket-proxy, Traefik, whoami | `make core` |
-| `monitoring` | InfluxDB, Telegraf, Grafana, Netdata | `make monitoring` |
+| `monitoring` | InfluxDB, Telegraf, Grafana | `make monitoring` |
+| `netdata` | Netdata with full Linux host visibility | `make netdata` |
 | `tools` | Portainer | `make tools` |
 | `iot` | Mosquitto, openHAB | `make iot` |
 | `test` | one-shot k6 smoke test | `make k6` |
 
-`make up` starts core + monitoring + tools, preserving the former operational scope. `make full` additionally starts IoT. `make down` preserves named volumes.
+`make up` starts core + monitoring + tools, preserving the former operational scope. `make full` additionally starts Netdata and IoT. `make down` preserves named volumes.
 
 ## Security model
 
 - `.env` contains only non-secret settings such as domain, timezone, organization, and bucket names.
-- `scripts/init.sh` creates strong random secrets only when files are missing and never overwrites existing credentials.
+- `scripts/init.sh` creates strong random secrets only when files are missing, uses cost-12 bcrypt for Traefik, and never overwrites existing credentials. The `.secrets/` directory is `0700`; operator-only plaintext files are `0600`, while bind-mounted Compose secret sources are `0644` so non-root containers can read them despite Compose's lack of UID/GID remapping.
 - Traefik's dashboard is routed through Traefik and protected by Basic Auth; the insecure dashboard port is disabled.
 - Docker API access for discovery and metrics is restricted through `docker-socket-proxy` on an internal network.
 - Containers use `no-new-privileges`, read-only filesystems, and reduced capabilities where supported.
-- Netdata is the documented exception: full host telemetry requires host PID/network access and additional read-only mounts/capabilities. It remains profile-gated.
+- Netdata is the documented exception: full host telemetry requires host PID/network access and additional read-only mounts/capabilities. It has its own profile and is excluded from the legacy-equivalent `make up`.
 - Historical committed credentials must be considered compromised and rotated during migration.
 
 ## Data and migration
@@ -56,7 +57,7 @@ State moves from repository-relative bind mounts to named volumes. This prevents
 - InfluxDB remains on the v2 line to retain Flux and existing Grafana/Telegraf behavior.
 - Telegraf uses a concise maintained configuration instead of a generated multi-thousand-line sample.
 - Grafana provisions the InfluxDB datasource and a small host dashboard from version-controlled files.
-- Mosquitto requires authentication and persists data/logs.
+- Mosquitto uses the 2.1 password-file plugin with Argon2id records and the SQLite persistence plugin. Its file-backed secret is copied at startup into a UID/GID `1883`, mode `0600` runtime `tmpfs` because Compose cannot remap file-backed secret ownership.
 - openHAB uses persistent named volumes and Traefik; host networking for discovery-heavy bindings is documented as an optional deployment-specific override.
 - k6 is an ephemeral profile and targets the internal `whoami` endpoint by default.
 - k3s installation and port coexistence constraints are documented, but it is not a Compose service.
@@ -66,7 +67,7 @@ State moves from repository-relative bind mounts to named volumes. This prevents
 Local and CI validation must:
 
 1. parse every JSON and TOML configuration;
-2. validate the rendered Compose model for all profiles;
+2. validate the rendered Compose model for all profiles, including the separate Netdata profile;
 3. reject `latest`/implicit image tags, known leaked values, and destructive host-wide commands;
 4. ensure required planned services and local-secret declarations remain present;
 5. validate shell syntax.

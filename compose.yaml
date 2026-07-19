@@ -1,0 +1,370 @@
+name: homelab
+
+services:
+  docker-socket-proxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:0.4.2
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      EVENTS: "1"
+      INFO: "1"
+      NETWORKS: "1"
+      PING: "1"
+      SERVICES: "1"
+      TASKS: "1"
+      VERSION: "1"
+      POST: "0"
+      LOG_LEVEL: warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:2375/_ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  traefik:
+    image: traefik:v3.7.8
+    restart: unless-stopped
+    depends_on:
+      docker-socket-proxy:
+        condition: service_healthy
+    command:
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --ping=true
+      - --providers.docker=true
+      - --providers.docker.endpoint=tcp://docker-socket-proxy:2375
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=homelab_proxy
+      - --entrypoints.web.address=:80
+      - --accesslog=true
+      - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    secrets:
+      - traefik_users
+    networks:
+      - proxy
+      - socket
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: homelab_proxy
+      traefik.http.routers.traefik.rule: Host(`traefik.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.traefik.entrypoints: web
+      traefik.http.routers.traefik.service: api@internal
+      traefik.http.routers.traefik.middlewares: local-auth
+      traefik.http.middlewares.local-auth.basicauth.usersfile: /run/secrets/traefik_users
+
+  whoami:
+    image: traefik/whoami:v1.11.0
+    restart: unless-stopped
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: homelab_proxy
+      traefik.http.routers.whoami.rule: Host(`whoami.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.whoami.entrypoints: web
+      traefik.http.routers.whoami.middlewares: local-auth@docker
+      traefik.http.services.whoami.loadbalancer.server.port: "80"
+
+  influxdb:
+    image: influxdb:2.9.1-alpine
+    profiles: [monitoring]
+    restart: unless-stopped
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME_FILE: /run/secrets/influxdb_username
+      DOCKER_INFLUXDB_INIT_PASSWORD_FILE: /run/secrets/influxdb_password
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN_FILE: /run/secrets/influxdb_token
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG:-home-org}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET:-home-bucket}
+      DOCKER_INFLUXDB_INIT_RETENTION: ${INFLUXDB_RETENTION:-0}
+    secrets:
+      - influxdb_username
+      - influxdb_password
+      - influxdb_token
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    networks:
+      - proxy
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "influx", "ping", "--host", "http://localhost:8086"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: homelab_proxy
+      traefik.http.routers.influxdb.rule: Host(`influxdb.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.influxdb.entrypoints: web
+      traefik.http.services.influxdb.loadbalancer.server.port: "8086"
+
+  telegraf:
+    image: telegraf:1.39.1-alpine
+    profiles: [monitoring]
+    restart: unless-stopped
+    depends_on:
+      docker-socket-proxy:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    user: telegraf
+    environment:
+      HOST_PROC: /hostfs/proc
+      HOST_SYS: /hostfs/sys
+      HOST_ETC: /hostfs/etc
+      HOST_MOUNT_PREFIX: /hostfs
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-home-org}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-home-bucket}
+    secrets:
+      - influxdb_token
+    volumes:
+      - ./config/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - /:/hostfs:ro
+    networks:
+      - backend
+      - socket
+    security_opt:
+      - no-new-privileges:true
+
+  grafana:
+    image: grafana/grafana:13.1.0
+    profiles: [monitoring]
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -euc
+      - |
+        export INFLUXDB_TOKEN="$$(cat /run/secrets/influxdb_token)"
+        exec /run.sh
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-home-org}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-home-bucket}
+    secrets:
+      - grafana_admin_password
+      - influxdb_token
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/etc/grafana/dashboards:ro
+    networks:
+      - proxy
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: homelab_proxy
+      traefik.http.routers.grafana.rule: Host(`grafana.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.grafana.entrypoints: web
+      traefik.http.services.grafana.loadbalancer.server.port: "3000"
+
+  portainer:
+    image: portainer/portainer-ce:2.39.5-alpine
+    profiles: [tools]
+    restart: unless-stopped
+    command: --http-enabled
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: homelab_proxy
+      traefik.http.routers.portainer.rule: Host(`portainer.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.portainer.entrypoints: web
+      traefik.http.services.portainer.loadbalancer.server.port: "9000"
+
+  netdata:
+    image: netdata/netdata:v2.10.3
+    profiles: [netdata]
+    restart: unless-stopped
+    hostname: ${NETDATA_HOSTNAME:-homelab}
+    pid: host
+    network_mode: host
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - netdata_config:/etc/netdata
+      - netdata_lib:/var/lib/netdata
+      - netdata_cache:/var/cache/netdata
+      - /:/host/root:ro,rslave
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/log:/host/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /run/dbus:/run/dbus:ro
+
+  mosquitto:
+    image: eclipse-mosquitto:2.1.2-alpine
+    profiles: [iot]
+    restart: unless-stopped
+    entrypoint:
+      - /bin/ash
+      - -euc
+      - |
+        cp /run/secrets/mosquitto_passwords /run/mosquitto/passwords
+        chown 1883:1883 /run/mosquitto/passwords
+        chmod 0600 /run/mosquitto/passwords
+        exec /docker-entrypoint.sh /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    secrets:
+      - mosquitto_passwords
+    volumes:
+      - ./config/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+    tmpfs:
+      - /run/mosquitto:mode=0700,uid=1883,gid=1883
+    networks:
+      - iot
+    security_opt:
+      - no-new-privileges:true
+
+  openhab:
+    image: openhab/openhab:5.2.0
+    profiles: [iot]
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      CRYPTO_POLICY: unlimited
+      OPENHAB_HTTP_PORT: "8080"
+      OPENHAB_HTTPS_PORT: "8443"
+      USER_ID: ${OPENHAB_UID:-9001}
+      GROUP_ID: ${OPENHAB_GID:-9001}
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      - openhab_addons:/openhab/addons
+      - openhab_conf:/openhab/conf
+      - openhab_userdata:/openhab/userdata
+    networks:
+      - proxy
+      - iot
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: homelab_proxy
+      traefik.http.routers.openhab.rule: Host(`openhab.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.openhab.entrypoints: web
+      traefik.http.services.openhab.loadbalancer.server.port: "8080"
+
+  k6:
+    image: grafana/k6:2.1.0
+    profiles: [test]
+    depends_on:
+      - whoami
+    command: run /scripts/smoke.js
+    environment:
+      TARGET_URL: ${K6_TARGET_URL:-http://whoami}
+    volumes:
+      - ./config/k6:/scripts:ro
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+networks:
+  proxy:
+    name: homelab_proxy
+  backend:
+    name: homelab_backend
+    internal: true
+  socket:
+    name: homelab_socket
+    internal: true
+  iot:
+    name: homelab_iot
+
+volumes:
+  influxdb_data:
+    name: homelab_influxdb_data
+  influxdb_config:
+    name: homelab_influxdb_config
+  grafana_data:
+    name: homelab_grafana_data
+  portainer_data:
+    name: homelab_portainer_data
+  netdata_config:
+    name: homelab_netdata_config
+  netdata_lib:
+    name: homelab_netdata_lib
+  netdata_cache:
+    name: homelab_netdata_cache
+  mosquitto_data:
+    name: homelab_mosquitto_data
+  openhab_addons:
+    name: homelab_openhab_addons
+  openhab_conf:
+    name: homelab_openhab_conf
+  openhab_userdata:
+    name: homelab_openhab_userdata
+
+secrets:
+  influxdb_username:
+    file: ./.secrets/influxdb_username
+  influxdb_password:
+    file: ./.secrets/influxdb_password
+  influxdb_token:
+    file: ./.secrets/influxdb_token
+  grafana_admin_password:
+    file: ./.secrets/grafana_admin_password
+  traefik_users:
+    file: ./.secrets/traefik_users
+  mosquitto_passwords:
+    file: ./.secrets/mosquitto_passwords

@@ -6,11 +6,11 @@
 
 **Architecture:** A root Compose Specification file defines a profile-free Traefik core and optional monitoring, tools, IoT, and test profiles. Local file-backed secrets, named volumes, purpose-specific networks, concise service configuration, validation scripts, CI, and Renovate keep the implementation secure without adding an orchestration framework.
 
-**Tech Stack:** Docker Engine, Docker Compose v2, Traefik 3, InfluxDB 2, Telegraf, Grafana, Portainer CE LTS, Netdata, Eclipse Mosquitto, openHAB, Grafana k6, POSIX shell, Python standard library, GitHub Actions, Renovate.
+**Tech Stack:** Docker Engine, Docker Compose plugin (`docker compose`), Traefik 3, InfluxDB 2, Telegraf, Grafana, Portainer CE LTS, Netdata, Eclipse Mosquitto, openHAB, Grafana k6, POSIX shell, Python standard library, GitHub Actions, Renovate.
 
 ## Global Constraints
 
-- Support Linux `amd64` and `arm64` with current Docker Engine and Docker Compose v2.
+- Support Linux `amd64` and `arm64` with current Docker Engine and Docker Compose plugin (`docker compose`).
 - `make up` must preserve the previous Traefik + InfluxDB + Telegraf + Grafana + Portainer scope.
 - Never commit plaintext credentials or generated secret files.
 - Never use `latest` or an implicit container tag.
@@ -45,7 +45,7 @@ Expected: non-zero exit with `compose.yaml is missing`.
 The wrapper runs the static checker, `sh -n scripts/*.sh`, creates non-destructive temporary placeholder secret files when needed, and runs:
 
 ```sh
-docker compose --env-file .env.example --profile monitoring --profile tools --profile iot --profile test config --quiet
+docker compose --env-file .env.example --profile monitoring --profile tools --profile iot --profile netdata --profile test config --quiet
 ```
 
 - [ ] **Step 4: Commit**
@@ -65,7 +65,7 @@ git commit -m "test: add homelab configuration checks"
 
 **Interfaces:**
 - Consumes: `.env` non-secret settings and `.secrets/*` files created by Task 3.
-- Produces: profiles `monitoring`, `tools`, `iot`, and `test`; Make targets `init`, `core`, `up`, `full`, `monitoring`, `tools`, `iot`, `k6`, `pull`, `ps`, `logs`, `down`, and `check`.
+- Produces: profiles `monitoring`, `tools`, `iot`, `netdata`, and `test`; Make targets `init`, `core`, `up`, `full`, `monitoring`, `netdata`, `tools`, `iot`, `k6`, `pull`, `ps`, `logs`, `down`, and `check`.
 
 - [ ] **Step 1: Confirm the acceptance check remains red**
 
@@ -75,11 +75,11 @@ Expected: failure because `compose.yaml` and required services are absent.
 
 - [ ] **Step 2: Add the root Compose model**
 
-Define explicit stable images, named volumes, internal networks, health checks, profile gates, Traefik routing, and local Compose secrets. The profile-free core is `docker-socket-proxy`, `traefik`, and `whoami`.
+Define explicit stable images, named volumes, internal networks, health checks, profile gates, Traefik routing, and local Compose secrets. The profile-free core is `docker-socket-proxy`, `traefik`, and `whoami`; Netdata uses its own profile so the default remains privilege-minimal.
 
 - [ ] **Step 3: Add safe lifecycle commands**
 
-Make `make up` start `monitoring` + `tools`, `make full` add `iot`, and `make down` omit `--volumes`.
+Make `make up` start `monitoring` + `tools`, `make full` add `iot` and `netdata`, and `make down` omit `--volumes`.
 
 - [ ] **Step 4: Run static validation**
 
@@ -111,11 +111,11 @@ git commit -m "feat: unify services in profile-based compose stack"
 
 - [ ] **Step 1: Add idempotent initialization**
 
-Generate missing random values with OpenSSL, build Apache MD5 Basic Auth and Mosquitto password hashes, set directory mode `0700` and file mode `0600`, and copy `.env.example` to `.env` only when absent.
+Generate missing random values with OpenSSL, build a cost-12 bcrypt Basic Auth record and a Mosquitto Argon2id record without placing plaintext in process arguments, set `.secrets/` to `0700`, operator-only plaintext files to `0600`, and file-backed Compose secret sources to `0644` for non-root container compatibility, then copy `.env.example` to `.env` only when absent.
 
 - [ ] **Step 2: Replace generated sample configuration**
 
-Use a concise Telegraf configuration with host/Docker inputs and InfluxDB v2 output through the Docker secret store. Require Mosquitto authentication and persistence.
+Use a concise Telegraf configuration with host/Docker inputs and InfluxDB v2 output through the Docker secret store. Configure Mosquitto 2.1 with its password-file and SQLite persistence plugins, and copy the file-backed password secret into a private UID/GID `1883`, mode `0600` runtime `tmpfs`.
 
 - [ ] **Step 3: Provision Grafana and k6**
 
@@ -195,7 +195,7 @@ Run:
 
 ```sh
 ./scripts/check.sh
-docker compose --env-file .env.example --profile monitoring --profile tools --profile iot --profile test config --images
+docker compose --env-file .env.example --profile monitoring --profile tools --profile iot --profile netdata --profile test config --images
 ```
 
 Expected: all checks pass and every image is explicitly tagged.
@@ -228,7 +228,7 @@ Run:
 
 ```sh
 git diff --check main...HEAD
-git grep -nE 'bc183SEgTbuNqxLyuGTd2s|home-token|docker system prune|chmod 0777|git reset --hard' || true
+git grep -nE 'docker system prune|chmod 0777|git reset --hard' || true
 ```
 
 Expected: no whitespace errors and no matches outside migration/security explanations where values are not reproduced.
