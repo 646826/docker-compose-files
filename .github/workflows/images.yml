@@ -1,0 +1,61 @@
+name: Image platforms
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "compose.yaml"
+      - ".env.example"
+      - "Makefile"
+      - "scripts/init.sh"
+      - "scripts/check_images.py"
+      - "scripts/test_check_images.py"
+      - ".github/workflows/images.yml"
+  pull_request:
+    paths:
+      - "compose.yaml"
+      - ".env.example"
+      - "Makefile"
+      - "scripts/init.sh"
+      - "scripts/check_images.py"
+      - "scripts/test_check_images.py"
+      - ".github/workflows/images.yml"
+  schedule:
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-platforms-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify pinned image platforms
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Verify Docker Buildx
+        run: docker buildx version
+
+      - name: Verify image tags and platforms
+        shell: bash
+        run: |
+          set -o pipefail
+          make check-images 2>&1 | tee image-platforms.log
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-platforms-log
+          path: image-platforms.log
+          if-no-files-found: error
+          retention-days: 3
