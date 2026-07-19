@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from scripts.check_images import (  # noqa: E402
     helper_images,
     manifest_platforms,
     missing_platforms,
+    select_env_file,
+    temporary_secret_placeholders,
 )
 
 
@@ -50,6 +53,55 @@ OTHER_IMAGE=ignored:1
     def test_rejects_a_missing_helper_assignment(self) -> None:
         with self.assertRaisesRegex(ValueError, "MOSQUITTO_IMAGE"):
             helper_images("HTPASSWD_IMAGE=httpd:2.4.68-alpine\n")
+
+
+class LocalComposeInputTests(unittest.TestCase):
+    def test_prefers_local_env_and_falls_back_to_example(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            example = root / ".env.example"
+            example.write_text("BASE_DOMAIN=localhost\n", encoding="utf-8")
+
+            self.assertEqual(select_env_file(root), example)
+
+            local = root / ".env"
+            local.write_text("BASE_DOMAIN=home.arpa\n", encoding="utf-8")
+            self.assertEqual(select_env_file(root), local)
+
+    def test_temporary_placeholders_preserve_existing_files_and_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            secrets = root / ".secrets"
+            secrets.mkdir()
+            existing = secrets / "influxdb_token"
+            existing.write_text("keep-me\n", encoding="utf-8")
+
+            with temporary_secret_placeholders(root):
+                self.assertEqual(existing.read_text(encoding="utf-8"), "keep-me\n")
+                for name in (
+                    "influxdb_username",
+                    "influxdb_password",
+                    "influxdb_token",
+                    "grafana_admin_password",
+                    "traefik_users",
+                    "mosquitto_passwords",
+                ):
+                    self.assertTrue((secrets / name).is_file(), name)
+
+            self.assertEqual(existing.read_text(encoding="utf-8"), "keep-me\n")
+            self.assertEqual(
+                {path.name for path in secrets.iterdir()},
+                {"influxdb_token"},
+            )
+
+    def test_temporary_placeholders_remove_a_created_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            with temporary_secret_placeholders(root):
+                self.assertTrue((root / ".secrets").is_dir())
+
+            self.assertFalse((root / ".secrets").exists())
 
 
 class ManifestPlatformsTests(unittest.TestCase):
