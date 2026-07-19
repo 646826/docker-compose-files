@@ -49,7 +49,7 @@ case "${1:-}" in
         [ -n "$username" ]
         IFS= read -r password
         [ -n "$password" ]
-        printf '%s:$argon2id$v=19$m=19456,t=2,p=1$ZmFrZXNhbHQ$ZmFrZWhhc2g\n' "$username"
+        printf '%s:$7$220000$ZmFrZXNhbHQ=$ZmFrZWhhc2g=\n' "$username"
         ;;
       *)
         printf 'Unexpected docker run invocation: %s\n' "$*" >&2
@@ -175,15 +175,17 @@ MOSQUITTO_USERNAME=test-mqtt
             fail("Traefik password file is not a cost-12 bcrypt record")
 
         mosquitto_users = (secrets / "mosquitto_passwords").read_text(encoding="utf-8").strip()
-        if not mosquitto_users.startswith("test-mqtt:$argon2id$"):
-            fail("Mosquitto password file is not an Argon2id record for the configured username")
+        if not mosquitto_users.startswith("test-mqtt:$7$220000$"):
+            fail("Mosquitto password file is not a 220000-iteration SHA512-PBKDF2 record")
 
         docker_log = Path(environment["FAKE_DOCKER_LOG"])
         docker_calls = docker_log.read_text(encoding="utf-8")
         if "mosquitto_passwd -b" in docker_calls:
             fail("bootstrap exposes the Mosquitto password through batch-mode arguments")
-        if "mosquitto_passwd -U" not in docker_calls:
-            fail("bootstrap does not convert the Mosquitto plaintext record with -U")
+        if "mosquitto_passwd -H sha512-pbkdf2 -I 220000 -c" not in docker_calls:
+            fail("bootstrap does not explicitly create a 220000-iteration SHA512-PBKDF2 record")
+        if "mosquitto_passwd -H argon2id" in docker_calls:
+            fail("bootstrap requests Argon2id from an official image that does not compile it in")
         if "--volume" in next(
             line for line in docker_calls.splitlines() if "eclipse-mosquitto:" in line
         ):
