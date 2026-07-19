@@ -45,8 +45,5 @@ jobs:
       - name: Verify Docker Buildx
         run: docker buildx version
 
-      - name: Initialize local test credentials
-        run: make init
-
       - name: Verify image tags and platforms
         run: make check-images
