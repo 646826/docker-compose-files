@@ -44,6 +44,7 @@ def main() -> int:
     env_example = read_required(".env.example")
     makefile = read_required("Makefile")
     readme = read_required("README.md")
+    init_script = read_required("scripts/init.sh")
     script = read_required("scripts/check_iot_runtime.sh")
     test_script = read_required("scripts/test_iot_runtime.py")
     workflow = read_required(".github/workflows/iot-runtime.yml")
@@ -65,6 +66,12 @@ def main() -> int:
             if re.search(r"(?m)^check-iot-runtime:\s+init\b", block):
                 error("make check-iot-runtime must not reuse production initialization")
 
+    if init_script:
+        if "mosquitto_passwd -H argon2id -U" not in init_script:
+            error("normal bootstrap must explicitly select Argon2id before -U conversion")
+        if "mosquitto_passwd -b" in init_script:
+            error("normal bootstrap must not expose MQTT passwords through batch arguments")
+
     if script:
         required_fragments = (
             "--profile iot",
@@ -83,6 +90,7 @@ def main() -> int:
             "IoT runtime smoke test passed",
             "while [ \"$attempt\" -le 60 ]",
             "while [ \"$attempt\" -le 120 ]",
+            "mosquitto_passwd -H argon2id -U",
         )
         for fragment in required_fragments:
             if fragment not in script:
@@ -109,8 +117,6 @@ def main() -> int:
             error("MQTT password must not be passed in a process argument")
         if "mosquitto_passwd -b" in script:
             error("IoT runtime hashing must not expose the MQTT password in batch arguments")
-        if "mosquitto_passwd -U" not in script:
-            error("IoT runtime hashing must use mosquitto_passwd -U")
 
     if test_script:
         for contract in (
