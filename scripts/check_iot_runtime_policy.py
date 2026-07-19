@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ERRORS: list[str] = []
+PBKDF2_COMMAND = "mosquitto_passwd -H sha512-pbkdf2 -I 220000 -c"
 
 
 def error(message: str) -> None:
@@ -39,11 +40,24 @@ def without_client_config_heredoc(script: str) -> str:
     )
 
 
+def check_hashing_contract(label: str, script: str) -> None:
+    if PBKDF2_COMMAND not in script:
+        error(f"{label} must explicitly create a 220000-iteration SHA512-PBKDF2 record")
+    for forbidden in (
+        "mosquitto_passwd -H argon2id",
+        "mosquitto_passwd -b",
+        "mosquitto_passwd -U",
+    ):
+        if forbidden in script:
+            error(f"{label} contains unsupported or unsafe password hashing behavior: {forbidden}")
+
+
 def main() -> int:
     compose = read_required("compose.yaml")
     env_example = read_required(".env.example")
     makefile = read_required("Makefile")
     readme = read_required("README.md")
+    security = read_required("SECURITY.md")
     init_script = read_required("scripts/init.sh")
     script = read_required("scripts/check_iot_runtime.sh")
     test_script = read_required("scripts/test_iot_runtime.py")
@@ -67,10 +81,7 @@ def main() -> int:
                 error("make check-iot-runtime must not reuse production initialization")
 
     if init_script:
-        if "mosquitto_passwd -H argon2id -U" not in init_script:
-            error("normal bootstrap must explicitly select Argon2id before -U conversion")
-        if "mosquitto_passwd -b" in init_script:
-            error("normal bootstrap must not expose MQTT passwords through batch arguments")
+        check_hashing_contract("normal bootstrap", init_script)
 
     if script:
         required_fragments = (
@@ -90,11 +101,12 @@ def main() -> int:
             "IoT runtime smoke test passed",
             "while [ \"$attempt\" -le 60 ]",
             "while [ \"$attempt\" -le 120 ]",
-            "mosquitto_passwd -H argon2id -U",
         )
         for fragment in required_fragments:
             if fragment not in script:
                 error(f"IoT runtime harness is missing: {fragment}")
+
+        check_hashing_contract("IoT runtime harness", script)
 
         forbidden_fragments = (
             "--profile monitoring",
@@ -114,9 +126,7 @@ def main() -> int:
 
         command_source = without_client_config_heredoc(script)
         if re.search(r"(?m)(?:^|\s)(?:-P|--pw)(?:\s|$)", command_source):
-            error("MQTT password must not be passed in a process argument")
-        if "mosquitto_passwd -b" in script:
-            error("IoT runtime hashing must not expose the MQTT password in batch arguments")
+            error("MQTT password must not be passed in a client process argument")
 
     if test_script:
         for contract in (
@@ -125,6 +135,7 @@ def main() -> int:
             "test_startup_failure_prints_diagnostics_and_cleans_up",
             "-o /run/mosquitto-client.conf",
             "restart --timeout 20 mosquitto",
+            PBKDF2_COMMAND,
         ):
             if contract not in test_script:
                 error(f"IoT runtime behavioral contract is missing: {contract}")
@@ -143,6 +154,13 @@ def main() -> int:
                 error(f"IoT runtime workflow is missing: {fragment}")
         if "make init" in workflow:
             error("IoT runtime workflow must not initialize or reuse production credentials")
+
+    for label, document in (("README", readme), ("SECURITY.md", security)):
+        if document:
+            if "SHA512-PBKDF2" not in document or "220000" not in document:
+                error(f"{label} must document the supported Mosquitto hashing algorithm and work factor")
+            if "Argon2id" in document:
+                error(f"{label} must not claim Argon2id support for the official Mosquitto 2.1.2 images")
 
     if readme:
         if "make check-iot-runtime" not in readme:
