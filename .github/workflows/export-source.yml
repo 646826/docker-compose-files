@@ -15,10 +15,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
+      - name: Record checked-out tree
+        run: git rev-parse 'HEAD^{tree}' > tree-sha.txt
       - uses: actions/upload-artifact@v4
         with:
           name: source-snapshot
           path: |
+            tree-sha.txt
             scripts/check_static.py
             README.md
             SECURITY.md
