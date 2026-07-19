@@ -1,0 +1,67 @@
+name: IoT runtime smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "compose.yaml"
+      - ".env.example"
+      - "Makefile"
+      - "config/mosquitto/**"
+      - "scripts/init.sh"
+      - "scripts/check_iot_runtime.sh"
+      - "scripts/check_iot_runtime_policy.py"
+      - "scripts/test_iot_runtime.py"
+      - ".github/workflows/iot-runtime.yml"
+  pull_request:
+    paths:
+      - "compose.yaml"
+      - ".env.example"
+      - "Makefile"
+      - "config/mosquitto/**"
+      - "scripts/init.sh"
+      - "scripts/check_iot_runtime.sh"
+      - "scripts/check_iot_runtime_policy.py"
+      - "scripts/test_iot_runtime.py"
+      - ".github/workflows/iot-runtime.yml"
+  schedule:
+    - cron: "23 5 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iot-runtime-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Verify MQTT and openHAB runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Verify Docker and Compose
+        run: |
+          docker version
+          docker compose version
+
+      - name: Run isolated IoT runtime smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          make check-iot-runtime 2>&1 | tee iot-runtime-smoke.log
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iot-runtime-smoke-log
+          path: iot-runtime-smoke.log
+          if-no-files-found: error
+          retention-days: 3

@@ -5,7 +5,7 @@ ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile net
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init check check-images check-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
+.PHONY: help init check check-images check-runtime check-iot-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -21,6 +21,9 @@ check-images: ## Verify pinned image tags and amd64/arm64 registry manifests
 
 check-runtime: ## Pull missing layers, start the isolated default stack, and run runtime assertions
 	@./scripts/check_runtime.sh
+
+check-iot-runtime: ## Start the isolated IoT stack and verify MQTT auth/persistence plus openHAB readiness
+	@sh ./scripts/check_iot_runtime.sh
 
 config: init ## Print the fully rendered Compose model for every profile
 	@$(COMPOSE) --env-file .env $(ALL_PROFILES) config

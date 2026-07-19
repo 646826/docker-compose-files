@@ -16,6 +16,7 @@
 - healthchecks, CI-проверка, Renovate и компактные поддерживаемые конфиги;
 - отдельная проверка существования image tags и manifests для `amd64`/`arm64`;
 - изолированный runtime smoke test для фактического запуска default stack;
+- отдельный IoT runtime smoke test для MQTT authentication/persistence и готовности openHAB;
 - k3s отделён от Compose, чтобы базовый стек не превращался в сложную платформу.
 
 ## Требования
@@ -39,7 +40,7 @@ make up
 1. создаёт `.env` из `.env.example`, если файла ещё нет;
 2. создаёт только отсутствующие файлы в `.secrets/`;
 3. не заменяет существующие настройки и пароли;
-4. создаёт bcrypt cost 12 для Traefik и Argon2id password record для Mosquitto через фиксированные официальные образы; plaintext не передаётся аргументом процесса;
+4. создаёт bcrypt cost 12 для Traefik и SHA512-PBKDF2 password record с 220000 итерациями для Mosquitto через фиксированные официальные образы; plaintext не передаётся аргументом процесса;
 5. сохраняет генерируемые raw secrets без завершающего перевода строки, чтобы file-backed token можно было безопасно использовать в HTTP headers.
 
 `make up` запускает эквивалент прежнего набора: core + monitoring + Portainer.
@@ -57,7 +58,7 @@ make up
 | openHAB | `http://openhab.localhost` | `make full` / `make iot` |
 | Mosquitto | `mqtt://localhost:1883` | `make full` / `make iot` |
 
-Домен, bind-адрес, HTTP-порт, MQTT-порт и timezone меняются в `.env`. `HOMELAB_PROJECT_NAME` задаёт общий префикс проекта, сетей и volumes; default `homelab` сохраняет прежние имена. Для доступа с другого компьютера настройте локальный DNS или записи hosts для выбранного `BASE_DOMAIN`.
+Домен, bind-адреса, HTTP-порт, MQTT-порт и timezone меняются в `.env`. `HTTP_HOST_IP` и `MQTT_HOST_IP` по умолчанию равны `0.0.0.0`; задайте `127.0.0.1`, чтобы публиковать соответствующий порт только локально. `HOMELAB_PROJECT_NAME` задаёт общий префикс проекта, сетей и volumes; default `homelab` сохраняет прежние имена. Для доступа с другого компьютера настройте локальный DNS или записи hosts для выбранного `BASE_DOMAIN`.
 
 ## Команды
 
@@ -79,6 +80,7 @@ make up
 | `make check` | выполнить локальные static, behavior, shell и Compose-проверки |
 | `make check-images` | проверить registry tags и manifests для `amd64`/`arm64` |
 | `make check-runtime` | поднять изолированный default stack и проверить маршруты, auth, provisioning и метрики |
+| `make check-iot-runtime` | поднять изолированный IoT stack и проверить MQTT auth/persistence и готовность openHAB |
 | `make down` | остановить проект, сохранив volumes |
 
 ## Учётные данные
@@ -97,7 +99,7 @@ make up
 
 Raw password/token files создаются без CR/LF в конце. Это важно для `.secrets/influxdb_token`: Telegraf Docker secret store читает байты файла непосредственно, поэтому перевод строки попал бы в HTTP `Authorization` header. При следующем `make init` старый token, созданный предыдущей версией скрипта, нормализуется удалением только завершающего LF/CRLF; само значение token не ротируется.
 
-Для Mosquitto файл `.secrets/mosquitto_passwords` содержит только Argon2id hash. При старте контейнер копирует его из read-only Compose secret в приватный `tmpfs`, назначает владельца UID/GID `1883` и режим `0600`; исходный plaintext остаётся только в `.secrets/mosquitto_password`.
+Для Mosquitto файл `.secrets/mosquitto_passwords` содержит только SHA512-PBKDF2 hash с 220000 итерациями. При старте контейнер копирует его из read-only Compose secret в приватный `tmpfs`, назначает владельца UID/GID `1883` и режим `0600`; исходный plaintext остаётся только в `.secrets/mosquitto_password`.
 
 MQTT listener требует пароль, но default-порт `1883` не использует TLS. Оставляйте его в доверенной локальной сети; для передачи через недоверенную сеть добавьте deployment-specific TLS listener на `8883` и не публикуйте plaintext listener наружу.
 
@@ -187,7 +189,7 @@ Bridge-сеть и Traefik дают переносимый безопасный 
 
 k3s не запускается внутри этого Compose-проекта. Причины и безопасный вариант совместной установки описаны в [`docs/K3S.md`](docs/K3S.md).
 
-## Три уровня проверки
+## Четыре уровня проверки
 
 ### 1. Быстрая конфигурационная проверка
 
@@ -214,7 +216,7 @@ make check-images
 
 Получает через Docker Buildx только registry manifests, не скачивает слои образов и не запускает сервисы. Проверка завершается ошибкой, если tag отсутствует либо образ не публикует оба поддерживаемых варианта: `linux/amd64` и `linux/arm64`.
 
-### 3. Изолированная runtime-проверка
+### 3. Изолированная runtime-проверка default stack
 
 ```bash
 make check-runtime
@@ -232,3 +234,21 @@ make check-runtime
 - гарантированный scoped cleanup с удалением только одноразовых runtime volumes.
 
 Проверка скачивает отсутствующие image layers и занимает заметно больше времени. Она не запускает Netdata, Mosquitto, openHAB или k6 и не читает рабочие `.env`/`.secrets/`.
+
+### 4. Изолированная IoT runtime-проверка
+
+```bash
+make check-iot-runtime
+```
+
+Создаёт отдельный проект `homelab-iot-runtime-*`, публикует HTTP и MQTT только на случайных loopback-портах, запускает core + profile `iot` и использует официальный Mosquitto image для краткоживущих client-контейнеров через Linux host networking.
+
+Проверяются:
+
+- отказ анонимному MQTT publish;
+- authenticated QoS 1 retained publish и точное получение payload через subscribe;
+- сохранение retained payload после `restart mosquitto`, что проверяет SQLite persistence на project-scoped volume;
+- готовность openHAB через его Traefik hostname;
+- отсутствие MQTT password в process arguments и гарантированный scoped cleanup.
+
+Проверка скачивает отсутствующие layers Mosquitto/openHAB и рассчитана только на Linux Docker Engine. Она не устанавливает openHAB MQTT Binding, не завершает setup wizard и не проверяет UPnP, multicast, USB или другое оборудование.

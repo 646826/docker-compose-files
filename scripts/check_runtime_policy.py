@@ -72,7 +72,7 @@ def main() -> int:
     readme = read_required("README.md")
     if readme:
         required_readme_fragments = (
-            "## Три уровня проверки",
+            "## Четыре уровня проверки",
             "make check-runtime",
             "127.0.0.1",
             "tmpfs",

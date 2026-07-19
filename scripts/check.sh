@@ -19,9 +19,11 @@ trap cleanup EXIT HUP INT TERM
 cd "$ROOT"
 python3 scripts/check_static.py
 python3 scripts/check_runtime_policy.py
+python3 scripts/check_iot_runtime_policy.py
 python3 scripts/test_init.py
 python3 scripts/test_check_images.py
 python3 scripts/test_runtime.py
+python3 scripts/test_iot_runtime.py
 
 for script in scripts/*.sh; do
   sh -n "$script"
