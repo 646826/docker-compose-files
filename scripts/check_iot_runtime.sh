@@ -290,13 +290,13 @@ mosquitto_record=$(
       -euc '
         umask 077
         IFS= read -r password
-        printf "%s:%s\n" "$MOSQUITTO_USERNAME" "$password" >/tmp/mosquitto_passwords
-        mosquitto_passwd -H argon2id -U /tmp/mosquitto_passwords
+        printf "%s\n%s\n" "$password" "$password" |
+          mosquitto_passwd -H sha512-pbkdf2 -I 220000 -c /tmp/mosquitto_passwords "$MOSQUITTO_USERNAME" >/tmp/mosquitto-passwd.log
         cat /tmp/mosquitto_passwords
       '
 )
 case "$mosquitto_record" in
-  "$MOSQUITTO_USERNAME":'$argon2id$'*) ;;
+  "$MOSQUITTO_USERNAME":'$7$220000$'*) ;;
   *)
     printf 'Unexpected mosquitto_passwd output; IoT runtime credentials were not accepted.\n' >&2
     exit 1
