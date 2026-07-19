@@ -1,104 +1,57 @@
-#!/bin/bash
+SHELL := /bin/sh
+COMPOSE ?= docker compose
+DEFAULT_PROFILES := --profile monitoring --profile tools
+ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile netdata --profile test
 
-.IGNORE:
-.DEFAULT_GOAL := list
+.DEFAULT_GOAL := help
 
-list:
-	@@echo "---=List=---"
+.PHONY: help init check config core up full monitoring netdata tools iot k6 pull ps logs down
 
+help: ## Show available commands
+	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-network:
-	docker network create db
-	docker network create web
+init: ## Create .env and missing local secrets without overwriting existing values
+	@./scripts/init.sh
 
-up:
-	docker-compose -f ./docker-compose/v1/traefik/docker-compose.yml up -d	
-	docker-compose -f ./docker-compose/v1/influxdb/docker-compose.yml up -d
-	docker-compose -f ./docker-compose/v1/telegraf/docker-compose.yml up -d
-	docker-compose -f ./docker-compose/v1/grafana/docker-compose.yml up -d
-	docker-compose -f ./docker-compose/v1/portainer/docker-compose.yml up -d
+check: ## Validate static files, bootstrap behavior, shell scripts, and the full Compose model
+	@./scripts/check.sh
 
+config: init ## Print the fully rendered Compose model for every profile
+	@$(COMPOSE) --env-file .env $(ALL_PROFILES) config
 
-down:
-	docker-compose -f ./docker-compose/v1/traefik/docker-compose.yml down -v
-	docker-compose -f ./docker-compose/v1/influxdb/docker-compose.yml down -v
-	docker-compose -f ./docker-compose/v1/telegraf/docker-compose.yml down -v
-	docker-compose -f ./docker-compose/v1/grafana/docker-compose.yml down -v
-	docker-compose -f ./docker-compose/v1/portainer/docker-compose.yml down -v
+core: init ## Start Traefik, Docker socket proxy, and whoami
+	@$(COMPOSE) up -d
 
+up: init ## Start the legacy-equivalent stack: core, monitoring, and Portainer
+	@$(COMPOSE) $(DEFAULT_PROFILES) up -d
 
-cl:
-	docker stop $(docker ps -a -q)
-	docker rm $(docker ps -a -q)
-	docker system prune -a -f
-	# docker network create web
-	# docker network create db
+full: init ## Start every persistent service, including Netdata, Mosquitto, and openHAB
+	@$(COMPOSE) --profile monitoring --profile tools --profile iot --profile netdata up -d
 
+monitoring: init ## Start core plus InfluxDB, Telegraf, and Grafana
+	@$(COMPOSE) --profile monitoring up -d
 
-## Next add
-# docker-compose -f ./docker-compose/v1/netdata/docker-compose.yml up -d
-# docker-compose -f ./docker-compose/v1/pihole/docker-compose.yml up -d
-# docker-compose -f ./docker-compose/v1/smokeping/docker-compose.yml up -d	
-# docker-compose -f ./docker-compose/v1/homeassistant/docker-compose.yml up -d
-# docker-compose -f ./docker-compose/v1/postgres/docker-compose.yml up -d
-# docker-compose -f ./docker-compose/v1/airflow/docker-compose.yml up -d
-# docker-compose -f ./docker-compose/v1/adminer/docker-compose.yml up -d
-# docker-compose -f ./docker-compose/v1/eclipse-mosquitto/docker-compose.yml up -d
+netdata: init ## Start full host monitoring without changing the rest of the stack
+	@$(COMPOSE) --profile netdata up -d netdata
 
-#Command on Raspberry
+tools: init ## Start core plus Portainer
+	@$(COMPOSE) --profile tools up -d
 
+iot: init ## Start core plus Mosquitto and openHAB
+	@$(COMPOSE) --profile iot up -d
 
-#/mnt/mydisk/repo/docker/
+k6: init ## Run the bounded k6 smoke test against K6_TARGET_URL
+	@$(COMPOSE) up -d whoami
+	@$(COMPOSE) --profile test run --rm k6
 
-repo_url = ""
+pull: init ## Pull every explicitly selected image version
+	@$(COMPOSE) $(ALL_PROFILES) pull
 
-git_root=/mnt/
-git_folder=${git_root}mydisk/repo/
-docker_git_folder=${git_folder}docker/
+ps: init ## Show containers from every profile
+	@$(COMPOSE) $(ALL_PROFILES) ps
 
-user_name = 646826
-user_email = ${user_name}@gmail.com
+logs: init ## Follow logs from every profile
+	@$(COMPOSE) $(ALL_PROFILES) logs --tail=200 -f
 
-cl:
-	docker stop $(docker ps -a -q)
-	docker rm $(docker ps -a -q)
-	docker system prune -a -f
-	docker network create web
-	docker network create db
-	sudo chmod 0777 ${git_root} -R
-	git --git-dir=${docker_git_folder} pull
-	git --git-dir=${docker_git_folder} clean -f -d
-
-init:
-	sudo apt update && sudo apt -y dist-upgrade
-	sudo apt -y install docker docker-compose
-	sudo usermod -aG docker pi
-	sudo systemctl enable docker
-	sudo systemctl start docker
-	sudo apt install git
-	git config --global user.name ${user_name}
-	git config --global user.email ${user_email}
-	git config --global credential.helper cache
-	git config --global credential.helper 'cache --timeout=9600'
-	sudo mkdir -p ${git_folder}
-	sudo chmod 0777 ${git_root} -R
-	cd ${git_folder}
-	sudo git clone ${repo_url}
-	sudo chmod 0777 ${git_root} -R
-	sudo shutdown -r now
-
-gt:
-	cd
-	sudo rm ${git_root} -f -d -r
-	sudo mkdir -p ${git_folder}
-	sudo chmod 0777 ${git_root} -R
-	cd ${git_folder}
-	sudo git clone ${repo_url}
-	sudo chmod 0777 ${git_root} -R
-
-upd:
-	sudo chmod 0777 ${git_root} -R
-	cd ${docker_git_folder}
-	git reset --hard
-	git clean -f -d
-	git pull
+down: ## Stop this project and preserve all named volumes
+	@$(COMPOSE) $(ALL_PROFILES) down --remove-orphans

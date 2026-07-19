@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "dependencyDashboard": true,
+  "minimumReleaseAge": "3 days",
+  "customManagers": [
+    {
+      "description": "Update helper container images used by scripts/init.sh",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts\\/init\\.sh$/"
+      ],
+      "matchStrings": [
+        "(?<depType>[A-Z_]+)_IMAGE=(?<depName>[^:\\s]+):(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Group container image updates",
+      "matchManagers": [
+        "docker-compose",
+        "custom.regex"
+      ],
+      "groupName": "container images",
+      "groupSlug": "container-images",
+      "schedule": [
+        "before 6am on Monday"
+      ]
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github actions",
+      "groupSlug": "github-actions",
+      "schedule": [
+        "before 6am on Monday"
+      ]
+    }
+  ]
+}
