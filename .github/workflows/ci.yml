@@ -25,5 +25,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Validate runtime policy
+        run: python3 scripts/check_runtime_policy.py
+
       - name: Validate configuration
         run: ./scripts/check.sh
