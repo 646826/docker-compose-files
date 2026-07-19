@@ -40,7 +40,7 @@ make up
 1. создаёт `.env` из `.env.example`, если файла ещё нет;
 2. создаёт только отсутствующие файлы в `.secrets/`;
 3. не заменяет существующие настройки и пароли;
-4. создаёт bcrypt cost 12 для Traefik и Argon2id password record для Mosquitto через фиксированные официальные образы; plaintext не передаётся аргументом процесса;
+4. создаёт bcrypt cost 12 для Traefik и SHA512-PBKDF2 password record с 220000 итерациями для Mosquitto через фиксированные официальные образы; plaintext не передаётся аргументом процесса;
 5. сохраняет генерируемые raw secrets без завершающего перевода строки, чтобы file-backed token можно было безопасно использовать в HTTP headers.
 
 `make up` запускает эквивалент прежнего набора: core + monitoring + Portainer.
@@ -99,7 +99,7 @@ make up
 
 Raw password/token files создаются без CR/LF в конце. Это важно для `.secrets/influxdb_token`: Telegraf Docker secret store читает байты файла непосредственно, поэтому перевод строки попал бы в HTTP `Authorization` header. При следующем `make init` старый token, созданный предыдущей версией скрипта, нормализуется удалением только завершающего LF/CRLF; само значение token не ротируется.
 
-Для Mosquitto файл `.secrets/mosquitto_passwords` содержит только Argon2id hash. При старте контейнер копирует его из read-only Compose secret в приватный `tmpfs`, назначает владельца UID/GID `1883` и режим `0600`; исходный plaintext остаётся только в `.secrets/mosquitto_password`.
+Для Mosquitto файл `.secrets/mosquitto_passwords` содержит только SHA512-PBKDF2 hash с 220000 итерациями. При старте контейнер копирует его из read-only Compose secret в приватный `tmpfs`, назначает владельца UID/GID `1883` и режим `0600`; исходный plaintext остаётся только в `.secrets/mosquitto_password`.
 
 MQTT listener требует пароль, но default-порт `1883` не использует TLS. Оставляйте его в доверенной локальной сети; для передачи через недоверенную сеть добавьте deployment-specific TLS listener на `8883` и не публикуйте plaintext listener наружу.
 
