@@ -4,16 +4,17 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Sequence
+from typing import Iterator, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
-ENV_FILE = ROOT / ".env"
 INIT_SCRIPT = ROOT / "scripts" / "init.sh"
 PROFILES = (
     "--profile",
@@ -29,6 +30,16 @@ PROFILES = (
 )
 HELPER_KEYS = ("HTPASSWD_IMAGE", "MOSQUITTO_IMAGE")
 REQUIRED_PLATFORMS = {"linux/amd64", "linux/arm64"}
+PLACEHOLDER_SECRETS = {
+    "influxdb_username": "manifest-check",
+    "influxdb_password": "manifest-check",
+    "influxdb_token": "manifest-check",
+    "grafana_admin_password": "manifest-check",
+    "traefik_users": "manifest-check:$2y$12$placeholder",
+    "mosquitto_passwords": (
+        "manifest-check:$argon2id$v=19$m=19456,t=2,p=1$placeholder$placeholder"
+    ),
+}
 
 
 def compose_images(stdout: str) -> set[str]:
@@ -52,6 +63,56 @@ def helper_images(init_script: str) -> set[str]:
             raise ValueError(f"missing {key} assignment in scripts/init.sh")
         images.add(match.group(1))
     return images
+
+
+def select_env_file(root: Path) -> Path:
+    """Prefer local non-secret settings, otherwise use the committed example."""
+    local = root / ".env"
+    if local.is_file():
+        return local
+
+    example = root / ".env.example"
+    if example.is_file():
+        return example
+
+    raise RuntimeError("neither .env nor .env.example exists")
+
+
+@contextmanager
+def temporary_secret_placeholders(root: Path) -> Iterator[None]:
+    """Create only missing Compose secret sources and remove them afterwards."""
+    secrets_dir = root / ".secrets"
+    created_dir = False
+    created_files: list[Path] = []
+    previous_umask = os.umask(0o077)
+
+    try:
+        if secrets_dir.exists() and not secrets_dir.is_dir():
+            raise RuntimeError(".secrets exists but is not a directory")
+        if not secrets_dir.exists():
+            secrets_dir.mkdir(mode=0o700)
+            created_dir = True
+
+        for name, value in PLACEHOLDER_SECRETS.items():
+            path = secrets_dir / name
+            if path.exists():
+                if not path.is_file():
+                    raise RuntimeError(f".secrets/{name} exists but is not a file")
+                continue
+            path.write_text(f"{value}\n", encoding="utf-8")
+            path.chmod(0o600)
+            created_files.append(path)
+
+        yield
+    finally:
+        for path in reversed(created_files):
+            path.unlink(missing_ok=True)
+        if created_dir:
+            try:
+                secrets_dir.rmdir()
+            except OSError:
+                pass
+        os.umask(previous_umask)
 
 
 def manifest_platforms(raw_manifest: str) -> set[str]:
@@ -136,22 +197,23 @@ def run_command(
 
 def configured_images() -> set[str]:
     """Render all Compose and bootstrap helper image references."""
-    if not ENV_FILE.is_file():
-        raise RuntimeError(".env is missing; run `make init` first")
     if not INIT_SCRIPT.is_file():
         raise RuntimeError("scripts/init.sh is missing")
 
-    rendered = run_command(
-        (
-            "docker",
-            "compose",
-            "--env-file",
-            ".env",
-            *PROFILES,
-            "config",
-            "--images",
+    env_file = select_env_file(ROOT)
+    with temporary_secret_placeholders(ROOT):
+        rendered = run_command(
+            (
+                "docker",
+                "compose",
+                "--env-file",
+                str(env_file),
+                *PROFILES,
+                "config",
+                "--images",
+            )
         )
-    )
+
     images = compose_images(rendered)
     images.update(helper_images(INIT_SCRIPT.read_text(encoding="utf-8")))
     return images
