@@ -269,6 +269,8 @@ def main() -> int:
         check_images_block = make_target_block(makefile, "check-images")
         if "python3 scripts/check_images.py" not in check_images_block:
             error("make check-images must run scripts/check_images.py")
+        if re.search(r"(?m)^check-images:\s+init\b", check_images_block):
+            error("make check-images must not invoke init or pull helper image layers")
 
         down_block = make_target_block(makefile, "down")
         if re.search(r"(?:^|\s)(?:-v|--volumes)(?:\s|$)", down_block):
@@ -292,12 +294,24 @@ def main() -> int:
     if check_script and "python3 scripts/test_check_images.py" not in check_script:
         error("scripts/check.sh must run image verification unit tests")
 
+    image_checker = read_required("scripts/check_images.py")
+    if image_checker:
+        for forbidden in ("docker pull", "docker run"):
+            if forbidden in image_checker:
+                error(f"image checker must remain manifest-only: {forbidden}")
+        if "temporary_secret_placeholders" not in image_checker:
+            error("image checker must create reversible Compose secret placeholders")
+        if "imagetools\", \"inspect\", \"--raw" not in image_checker:
+            error("image checker must inspect raw registry manifests through Buildx")
+
     image_workflow = read_required(".github/workflows/images.yml")
     if image_workflow:
         if "make check-images" not in image_workflow:
             error("image workflow must run make check-images")
         if "docker buildx version" not in image_workflow:
             error("image workflow must verify Docker Buildx availability")
+        if "make init" in image_workflow:
+            error("image workflow must not initialize credentials or pull image layers")
         if "pull_request:" not in image_workflow:
             error("image workflow must run for relevant pull requests")
         if "schedule:" not in image_workflow:
