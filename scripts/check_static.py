@@ -75,6 +75,7 @@ def tracked_secret_check() -> None:
 def scan_operational_files() -> None:
     roots = [
         ROOT / "compose.yaml",
+        ROOT / "compose.runtime.yaml",
         ROOT / "Makefile",
         ROOT / "README.md",
         ROOT / "SECURITY.md",
@@ -116,6 +117,7 @@ def scan_operational_files() -> None:
 def main() -> int:
     required_files = (
         "compose.yaml",
+        "compose.runtime.yaml",
         ".env.example",
         ".gitignore",
         "Makefile",
@@ -132,8 +134,10 @@ def main() -> int:
         "scripts/init.sh",
         "scripts/check.sh",
         "scripts/check_images.py",
+        "scripts/check_runtime.sh",
         "scripts/test_init.py",
         "scripts/test_check_images.py",
+        "scripts/test_runtime.py",
         ".github/workflows/ci.yml",
         ".github/workflows/images.yml",
         "renovate.json",
@@ -146,8 +150,11 @@ def main() -> int:
     if compose:
         if re.search(r"(?m)^version:\s*", compose):
             error("compose.yaml uses the obsolete top-level version key")
-        if not re.search(r"(?m)^name:\s*homelab\s*$", compose):
-            error("compose.yaml must use the stable project name homelab")
+        if not re.search(
+            r"(?m)^name:\s*\$\{HOMELAB_PROJECT_NAME:-homelab\}\s*$",
+            compose,
+        ):
+            error("compose.yaml must derive the project name from HOMELAB_PROJECT_NAME")
 
         services = (
             "docker-socket-proxy",
@@ -171,6 +178,30 @@ def main() -> int:
                 error(f"required Compose profile is missing: {profile}")
 
         check_images(compose)
+
+        runtime_interpolation = (
+            '"${HTTP_HOST_IP:-0.0.0.0}:${HTTP_PORT:-80}:80"',
+            "--providers.docker.network=${HOMELAB_PROJECT_NAME:-homelab}_proxy",
+            "traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_proxy",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_backend",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_socket",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_iot",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_influxdb_data",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_influxdb_config",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_grafana_data",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_portainer_data",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_netdata_config",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_netdata_lib",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_netdata_cache",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_mosquitto_data",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_addons",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_conf",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_userdata",
+        )
+        for fragment in runtime_interpolation:
+            if fragment not in compose:
+                error(f"runtime isolation interpolation is missing: {fragment}")
 
         required_secrets = (
             "influxdb_username",
@@ -210,9 +241,7 @@ def main() -> int:
         ):
             error("Grafana must use the official __FILE secret convention")
         if "export GF_SECURITY_ADMIN_PASSWORD=" in grafana_block:
-            error(
-                "Grafana bootstrap must not duplicate the official password-file handling"
-            )
+            error("Grafana bootstrap must not duplicate the official password-file handling")
 
         portainer_block = service_block(compose, "portainer")
         if "command: --http-enabled" not in portainer_block:
@@ -223,16 +252,44 @@ def main() -> int:
             error("Netdata must use its own opt-in profile")
 
         mosquitto_block = service_block(compose, "mosquitto")
-        required_runtime_password_steps = (
+        runtime_password_steps = (
             "cp /run/secrets/mosquitto_passwords /run/mosquitto/passwords",
             "chown 1883:1883 /run/mosquitto/passwords",
             "chmod 0600 /run/mosquitto/passwords",
         )
-        for step in required_runtime_password_steps:
+        for step in runtime_password_steps:
             if step not in mosquitto_block:
                 error(f"Mosquitto must prepare a private runtime password file: {step}")
         if "/run/mosquitto:mode=0700,uid=1883,gid=1883" not in mosquitto_block:
             error("Mosquitto must keep its runtime password file in a private tmpfs")
+
+    runtime_override = read_required("compose.runtime.yaml")
+    if runtime_override:
+        expected_tmpfs = {
+            "influxdb": ("/var/lib/influxdb2", "/etc/influxdb2"),
+            "grafana": ("/var/lib/grafana",),
+            "portainer": ("/data",),
+        }
+        for service, targets in expected_tmpfs.items():
+            block = service_block(runtime_override, service)
+            if not block:
+                error(f"runtime override is missing service: {service}")
+                continue
+            for target in targets:
+                pattern = rf"(?ms)type:\s*tmpfs\s*\n\s+target:\s*{re.escape(target)}\s*$"
+                if not re.search(pattern, block):
+                    error(f"runtime override must replace {service}:{target} with tmpfs")
+        if re.search(r"(?m)^\s*image:\s*", runtime_override):
+            error("runtime override must not replace production images")
+
+    env_example = read_required(".env.example")
+    if env_example:
+        for setting in (
+            "HOMELAB_PROJECT_NAME=homelab",
+            "HTTP_HOST_IP=0.0.0.0",
+        ):
+            if setting not in env_example:
+                error(f".env.example is missing runtime isolation default: {setting}")
 
     gitignore = read_required(".gitignore")
     for ignored in (".env", ".secrets/"):
@@ -277,22 +334,20 @@ def main() -> int:
             error("make down must preserve named volumes")
         if "DEFAULT_PROFILES := --profile monitoring --profile tools" not in makefile:
             error("make up must preserve the exact legacy monitoring + tools scope")
-        if (
-            "DEFAULT_PROFILES := --profile monitoring --profile tools --profile netdata"
-            in makefile
-        ):
+        if "DEFAULT_PROFILES := --profile monitoring --profile tools --profile netdata" in makefile:
             error("Netdata must remain opt-in and not join the legacy-equivalent default")
 
         for target in ("core", "up", "full", "monitoring", "netdata", "tools", "iot"):
             target_block = make_target_block(makefile, target)
             if "--remove-orphans" in target_block:
-                error(
-                    f"make {target} must not remove services started through another profile"
-                )
+                error(f"make {target} must not remove services started through another profile")
 
     check_script = read_required("scripts/check.sh")
-    if check_script and "python3 scripts/test_check_images.py" not in check_script:
-        error("scripts/check.sh must run image verification unit tests")
+    if check_script:
+        if "python3 scripts/test_check_images.py" not in check_script:
+            error("scripts/check.sh must run image verification unit tests")
+        if "python3 scripts/test_runtime.py" not in check_script:
+            error("scripts/check.sh must run runtime harness behavior tests")
 
     image_checker = read_required("scripts/check_images.py")
     if image_checker:
@@ -301,8 +356,32 @@ def main() -> int:
                 error(f"image checker must remain manifest-only: {forbidden}")
         if "temporary_secret_placeholders" not in image_checker:
             error("image checker must create reversible Compose secret placeholders")
-        if "imagetools\", \"inspect\", \"--raw" not in image_checker:
+        if 'imagetools", "inspect", "--raw' not in image_checker:
             error("image checker must inspect raw registry manifests through Buildx")
+
+    runtime_script = read_required("scripts/check_runtime.sh")
+    if runtime_script:
+        required_runtime_fragments = (
+            "compose.runtime.yaml",
+            "--profile monitoring",
+            "--profile tools",
+            "up --wait --wait-timeout 240",
+            "down --volumes --remove-orphans --timeout 20",
+            "logs --no-color --tail=200",
+            "HTTP_HOST_IP=127.0.0.1",
+            "/api/datasources/uid/influxdb",
+            "/api/v2/query?org=$INFLUXDB_ORG",
+            "Runtime smoke test passed",
+        )
+        for fragment in required_runtime_fragments:
+            if fragment not in runtime_script:
+                error(f"runtime harness is missing: {fragment}")
+        for forbidden_profile in ("--profile iot", "--profile netdata", "--profile test"):
+            if forbidden_profile in runtime_script:
+                error(f"runtime harness must not start {forbidden_profile}")
+        for forbidden_source in ('"$ROOT/.env"', '"$ROOT/.secrets'):
+            if forbidden_source in runtime_script:
+                error(f"runtime harness must not reuse source deployment data: {forbidden_source}")
 
     image_workflow = read_required(".github/workflows/images.yml")
     if image_workflow:
