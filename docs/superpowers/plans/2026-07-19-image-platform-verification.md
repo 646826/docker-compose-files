@@ -4,22 +4,23 @@
 
 **Goal:** Reject pinned container images that are unavailable or lack `linux/amd64` or `linux/arm64` registry manifests.
 
-**Architecture:** A dependency-free Python checker renders the full Compose image list, adds helper images declared in `scripts/init.sh`, queries raw registry manifests through Docker Buildx, and validates the documented platform set. Pure parser functions are unit tested; a separate GitHub Actions job performs the network-backed integration check.
+**Architecture:** A dependency-free Python checker renders the complete Compose image list with reversible placeholder secret files, adds helper images declared in `scripts/init.sh`, and queries raw registry manifests through Docker Buildx. Unit tests cover pure parsing and local-file lifecycle behavior; a dedicated GitHub Actions job performs the network-backed integration check without pulling image layers or starting containers.
 
 **Tech Stack:** Python 3.11 standard library, Docker Compose v2, Docker Buildx imagetools, Make, GitHub Actions.
 
 ## Global Constraints
 
-- Keep `make check` fast and do not make ordinary local validation depend on registry availability.
+- Keep `make check` fast and independent of registry availability.
 - Required platforms are exactly `linux/amd64` and `linux/arm64`.
-- Do not pull all image layers or start application services.
+- Do not run `make init`, pull image layers, start services, rotate credentials, or mutate volumes during image verification.
+- Preserve existing `.env` and `.secrets` files; create and remove only missing temporary placeholders.
 - Do not add Python packages, YAML parsers, registry SDKs, or another task runner.
-- Inspect every rendered Compose image and the `HTPASSWD_IMAGE` and `MOSQUITTO_IMAGE` helpers from `scripts/init.sh`.
-- Retry transient registry inspection failures three times, then fail with the image reference and stderr.
+- Inspect every image rendered from all Compose profiles and both helper images from `scripts/init.sh`.
+- Retry transient registry inspection failures three times and name the affected image in diagnostics.
 
 ---
 
-### Task 1: Add failing parser and policy tests
+### Task 1: Define image and manifest policy with failing tests
 
 **Files:**
 - Create: `scripts/test_check_images.py`
@@ -27,47 +28,13 @@
 
 **Interfaces:**
 - Consumes: a future `scripts.check_images` module.
-- Produces: executable unit tests covering the public pure functions.
+- Produces: standard-library tests for image discovery, manifest parsing, environment selection, and temporary-file cleanup.
 
-- [ ] **Step 1: Create tests before implementation**
-
-Create `scripts/test_check_images.py` with `unittest` cases for:
-
-```python
-from scripts.check_images import (
-    compose_images,
-    helper_images,
-    manifest_platforms,
-    missing_platforms,
-)
-```
-
-Assertions must cover sorted/de-duplicated Compose images, exact extraction of `HTPASSWD_IMAGE` and `MOSQUITTO_IMAGE`, Docker manifest-list and OCI-index descriptors, ignoring `unknown/unknown` attestations, returning an empty set for a single-platform manifest, malformed JSON raising `ValueError`, and required-platform differences.
-
-- [ ] **Step 2: Wire the new test into the existing suite**
-
-Add this line after the bootstrap test in `scripts/check.sh`:
-
-```sh
-python3 scripts/test_check_images.py
-```
-
-- [ ] **Step 3: Verify the test fails for the intended reason**
-
-Run:
-
-```bash
-python3 scripts/test_check_images.py
-```
-
-Expected: non-zero exit with `ModuleNotFoundError: No module named 'scripts.check_images'`.
-
-- [ ] **Step 4: Commit the red test**
-
-```bash
-git add scripts/test_check_images.py scripts/check.sh
-git commit -m "test: define image platform verification"
-```
+- [x] Add tests importing `compose_images`, `helper_images`, `manifest_platforms`, and `missing_platforms` before the module exists.
+- [x] Add tests for selecting `.env` over `.env.example`.
+- [x] Add tests proving temporary secret placeholders preserve existing files, remove created files, and remove a directory they created.
+- [x] Connect the test module to `scripts/check.sh`.
+- [x] Observe the intended RED result in GitHub Actions: the validation job fails because the required module or newly specified functions are absent.
 
 ### Task 2: Implement the dependency-free checker
 
@@ -78,78 +45,22 @@ git commit -m "test: define image platform verification"
 - Produces:
   - `compose_images(stdout: str) -> set[str]`
   - `helper_images(init_script: str) -> set[str]`
+  - `select_env_file(root: Path) -> Path`
+  - `temporary_secret_placeholders(root: Path) -> Iterator[None]`
   - `manifest_platforms(raw_manifest: str) -> set[str]`
   - `missing_platforms(platforms: set[str], required: set[str]) -> set[str]`
   - `main() -> int`
 
-- [ ] **Step 1: Implement pure parsing functions**
+- [x] Parse and de-duplicate `docker compose ... config --images` output.
+- [x] Extract exactly `HTPASSWD_IMAGE` and `MOSQUITTO_IMAGE` from `scripts/init.sh`.
+- [x] Prefer `.env` when present and otherwise use `.env.example`.
+- [x] Create only missing secret-source placeholders with private permissions and clean them in a `finally` path.
+- [x] Parse Docker manifest lists and OCI indexes; normalize `linux/arm64/v8` to `linux/arm64`; ignore `unknown/unknown` attestations.
+- [x] Inspect each image with `docker buildx imagetools inspect --raw IMAGE` and retry failed registry calls three times with 1- and 3-second delays.
+- [x] Fail with the exact image and missing platform; return success only when every image has both required platforms.
+- [x] Observe the unit/static suite become GREEN in GitHub Actions.
 
-Use `json.loads`, line-based image normalization, and an anchored regular expression for exactly these shell assignments:
-
-```python
-HELPER_KEYS = ("HTPASSWD_IMAGE", "MOSQUITTO_IMAGE")
-REQUIRED_PLATFORMS = {"linux/amd64", "linux/arm64"}
-```
-
-For manifest indexes, read `manifests[*].platform.os`, `.architecture`, and optional `.variant`. Normalize `linux/arm64/v8` to `linux/arm64`; ignore descriptors with unknown OS or architecture. A raw single-image manifest has no `manifests` array and therefore returns an empty platform set.
-
-- [ ] **Step 2: Implement external command execution**
-
-Render images with:
-
-```bash
-docker compose --env-file .env --profile monitoring --profile tools --profile iot --profile netdata --profile test config --images
-```
-
-Inspect each reference with:
-
-```bash
-docker buildx imagetools inspect --raw IMAGE
-```
-
-Use `subprocess.run(..., check=False, capture_output=True, text=True)`. Retry inspection up to three times with delays of 1 and 3 seconds before the final attempt. Do not retry parser or policy failures.
-
-- [ ] **Step 3: Implement CLI diagnostics**
-
-Check `docker compose version` and `docker buildx version` first. Print one `Checking IMAGE` line per unique sorted image. On success print:
-
-```text
-Image manifest checks passed: N images support linux/amd64 and linux/arm64
-```
-
-On failure print a concise message to stderr and return `1`; return `0` only after all images pass.
-
-- [ ] **Step 4: Verify green unit tests**
-
-Run:
-
-```bash
-python3 scripts/test_check_images.py
-```
-
-Expected: all tests pass with exit code `0`.
-
-- [ ] **Step 5: Verify the existing static suite**
-
-Run:
-
-```bash
-python3 scripts/check_static.py
-python3 scripts/test_init.py
-sh -n scripts/init.sh scripts/check.sh
-python3 -m py_compile scripts/check_images.py scripts/test_check_images.py
-```
-
-Expected: all commands exit `0`.
-
-- [ ] **Step 6: Commit the implementation**
-
-```bash
-git add scripts/check_images.py
-git commit -m "feat: verify image platform manifests"
-```
-
-### Task 3: Expose the check and run it in CI
+### Task 3: Expose a separate registry-backed command
 
 **Files:**
 - Modify: `Makefile`
@@ -158,71 +69,37 @@ git commit -m "feat: verify image platform manifests"
 - Modify: `scripts/check_static.py`
 
 **Interfaces:**
-- Produces: `make check-images` and a network-backed CI status check.
+- Produces: `make check-images` and a reviewable `Image platforms` GitHub status check.
 
-- [ ] **Step 1: Add the Make target**
+- [x] Add `check-images` to `.PHONY` without an `init` prerequisite.
+- [x] Keep `make check` registry-independent.
+- [x] Add a read-only workflow for relevant pull requests, pushes to `main`, manual dispatch, and weekly revalidation.
+- [x] Run only checkout, Buildx availability verification, and `make check-images`; do not initialize credentials.
+- [x] Preserve a three-day diagnostic artifact only when the network-backed step fails.
+- [x] Extend static acceptance checks to reject `make init`, `docker pull`, or `docker run` in the manifest-only path.
+- [x] Document the distinction between local configuration checks and registry-backed manifest checks.
 
-Add `check-images` to `.PHONY` and define:
-
-```make
-check-images: init ## Verify pinned image tags and amd64/arm64 registry manifests
-	@python3 scripts/check_images.py
-```
-
-Do not add this dependency to `make check`.
-
-- [ ] **Step 2: Add the dedicated workflow**
-
-Create `.github/workflows/images.yml` with read-only permissions, concurrency cancellation, a 15-minute timeout, and triggers for `workflow_dispatch`, weekly schedule, pushes to `main`, and pull requests changing image-related files. Steps are checkout, `docker buildx version`, `make init`, and `make check-images`.
-
-- [ ] **Step 3: Extend static acceptance checks**
-
-Make `scripts/check_static.py` require the new Make target, test file, checker file, and workflow. Require the workflow command `make check-images`, while preserving existing destructive-command and secret checks.
-
-- [ ] **Step 4: Document the distinction**
-
-Add `make check-images` to the command table and explain that `make check` validates local configuration while `make check-images` contacts registries and verifies tag availability plus both supported architectures.
-
-- [ ] **Step 5: Run all non-network checks**
-
-```bash
-python3 scripts/check_static.py
-python3 scripts/test_init.py
-python3 scripts/test_check_images.py
-sh -n scripts/init.sh scripts/check.sh
-python3 -m py_compile scripts/*.py
-```
-
-Expected: all commands exit `0`.
-
-- [ ] **Step 6: Commit integration and documentation**
-
-```bash
-git add Makefile .github/workflows/images.yml README.md scripts/check_static.py
-git commit -m "ci: validate pinned multi-platform images"
-```
-
-### Task 4: Verify the real registry integration
+### Task 4: Validate real published tags and platforms
 
 **Files:**
-- No production changes unless verification exposes an invalid tag or missing architecture.
+- Modify: `compose.yaml` only when registry evidence proves a pin is invalid.
 
-- [ ] **Step 1: Open a pull request**
+- [x] Open draft pull request #2 before completing implementation.
+- [x] Run ordinary CI and confirm Compose/static/bootstrap validation passes.
+- [x] Run real Buildx inspection across every Compose and helper image.
+- [x] Diagnose the first failure from an uploaded log artifact instead of guessing.
+- [x] Confirm `ghcr.io/tecnativa/docker-socket-proxy:0.4.2` and `tecnativa/docker-socket-proxy:0.4.2` are not published.
+- [x] Verify upstream publishes the release as `tecnativa/docker-socket-proxy:v0.4.2` with multi-architecture manifests.
+- [x] Replace only that invalid image reference.
+- [x] Re-run both jobs on the same head and confirm `CI` and `Image platforms` succeed.
 
-The PR description must separate unit/static validation from the registry-backed GitHub Actions result.
+### Task 5: Review and integrate
 
-- [ ] **Step 2: Confirm the original CI job passes**
+**Files:**
+- No production changes unless review finds a concrete defect.
 
-Expected: `Validate Compose project` succeeds.
-
-- [ ] **Step 3: Confirm image verification passes**
-
-Expected: every Compose and helper image resolves and reports both `linux/amd64` and `linux/arm64`. If a tag or architecture fails, correct the pinned version only after checking the upstream release and image publication source; then rerun both jobs.
-
-- [ ] **Step 4: Review the final diff**
-
-Verify no image layers are pulled by the checker, no credentials are printed, `make check` remains registry-independent, and no third-party Python dependency was introduced.
-
-- [ ] **Step 5: Merge only after both checks pass**
-
-Use squash merge and retain the branch until GitHub reports the merge commit on `main`.
+- [ ] Update the pull request description with the final behavior and verification evidence.
+- [ ] Review the final diff for credential disclosure, hidden layer pulls, service startup, third-party Python dependencies, and accidental coupling between `make check` and registries.
+- [ ] Mark the pull request ready only after both current-head checks succeed.
+- [ ] Squash merge with the expected head SHA.
+- [ ] Confirm GitHub reports the pull request merged and the merge commit is present on `main`.
