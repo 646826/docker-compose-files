@@ -53,6 +53,26 @@ case " $* " in
     exit 0
     ;;
   *" up --wait --wait-timeout 240 "*)
+    env_file=
+    previous=
+    for argument in "$@"; do
+      if [ "$previous" = "--env-file" ]; then
+        env_file=$argument
+      fi
+      previous=$argument
+    done
+    [ -n "$env_file" ]
+    token_file=$(dirname "$env_file")/.secrets/influxdb_token
+    python3 - "$token_file" <<'PY'
+from pathlib import Path
+import sys
+
+data = Path(sys.argv[1]).read_bytes()
+if not data:
+    raise SystemExit("runtime token is empty")
+if data.endswith((b"\n", b"\r")):
+    raise SystemExit("runtime token has a trailing line ending")
+PY
     if [ "${FAKE_RUNTIME_FAIL:-0}" = "1" ]; then
       printf 'simulated startup failure\n' >&2
       exit 42
