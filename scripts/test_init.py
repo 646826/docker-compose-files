@@ -162,7 +162,10 @@ MOSQUITTO_USERNAME=test-mqtt
         }
         plaintext_values: list[str] = []
         for name, length in hex_lengths.items():
-            value = (secrets / name).read_text(encoding="utf-8").strip()
+            raw = (secrets / name).read_bytes()
+            if raw.endswith((b"\n", b"\r")):
+                fail(f"{name} must not contain a trailing line ending")
+            value = raw.decode("utf-8")
             plaintext_values.append(value)
             if not re.fullmatch(rf"[0-9a-f]{{{length}}}", value):
                 fail(f"{name} is not a {length}-character random hex value")
@@ -192,7 +195,6 @@ MOSQUITTO_USERNAME=test-mqtt
                 fail("bootstrap printed a generated plaintext secret")
 
         before = {path.name: path.read_bytes() for path in secrets.iterdir()}
-        docker_log = Path(environment["FAKE_DOCKER_LOG"])
         docker_calls_before = docker_log.read_text(encoding="utf-8")
 
         second = run_init(project, environment)
