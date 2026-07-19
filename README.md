@@ -15,13 +15,14 @@
 - именованные volumes, которые не удаляются командой `make down`;
 - healthchecks, CI-проверка, Renovate и компактные поддерживаемые конфиги;
 - отдельная проверка существования image tags и manifests для `amd64`/`arm64`;
+- изолированный runtime smoke test для фактического запуска default stack;
 - k3s отделён от Compose, чтобы базовый стек не превращался в сложную платформу.
 
 ## Требования
 
 - Linux с Docker Engine и актуальным Compose plugin (`docker compose`, не legacy `docker-compose`);
 - `make`, POSIX shell и Python 3.11+;
-- OpenSSL;
+- OpenSSL и `curl`;
 - пользователь с доступом к Docker daemon.
 
 ## Быстрый запуск
@@ -38,7 +39,8 @@ make up
 1. создаёт `.env` из `.env.example`, если файла ещё нет;
 2. создаёт только отсутствующие файлы в `.secrets/`;
 3. не заменяет существующие настройки и пароли;
-4. создаёт bcrypt cost 12 для Traefik и Argon2id password record для Mosquitto через фиксированные официальные образы; plaintext не передаётся аргументом процесса.
+4. создаёт bcrypt cost 12 для Traefik и Argon2id password record для Mosquitto через фиксированные официальные образы; plaintext не передаётся аргументом процесса;
+5. сохраняет генерируемые raw secrets без завершающего перевода строки, чтобы file-backed token можно было безопасно использовать в HTTP headers.
 
 `make up` запускает эквивалент прежнего набора: core + monitoring + Portainer.
 
@@ -55,7 +57,7 @@ make up
 | openHAB | `http://openhab.localhost` | `make full` / `make iot` |
 | Mosquitto | `mqtt://localhost:1883` | `make full` / `make iot` |
 
-Домен, HTTP-порт, MQTT-порт и timezone меняются в `.env`. Для доступа с другого компьютера настройте локальный DNS или записи hosts для выбранного `BASE_DOMAIN`.
+Домен, bind-адрес, HTTP-порт, MQTT-порт и timezone меняются в `.env`. `HOMELAB_PROJECT_NAME` задаёт общий префикс проекта, сетей и volumes; default `homelab` сохраняет прежние имена. Для доступа с другого компьютера настройте локальный DNS или записи hosts для выбранного `BASE_DOMAIN`.
 
 ## Команды
 
@@ -74,8 +76,9 @@ make up
 | `make pull` | загрузить выбранные версии всех образов |
 | `make ps` | показать контейнеры всех profiles |
 | `make logs` | следить за логами |
-| `make check` | выполнить локальные статические, shell и Compose-проверки |
+| `make check` | выполнить локальные static, behavior, shell и Compose-проверки |
 | `make check-images` | проверить registry tags и manifests для `amd64`/`arm64` |
+| `make check-runtime` | поднять изолированный default stack и проверить маршруты, auth, provisioning и метрики |
 | `make down` | остановить проект, сохранив volumes |
 
 ## Учётные данные
@@ -91,6 +94,8 @@ make up
 | Portainer | задаётся в мастере первого запуска | хранится в Portainer volume |
 
 Каталог `.secrets/` имеет режим `0700`. Plaintext-файлы, которые нужны только оператору, имеют режим `0600`. Источники file-backed Compose secrets имеют режим `0644`, потому что Compose bind-монтирует их без remap UID/GID; приватный родительский каталог по-прежнему запрещает другим host-пользователям доступ к файлам. Каждый контейнер получает только явно назначенные ему secrets.
+
+Raw password/token files создаются без CR/LF в конце. Это важно для `.secrets/influxdb_token`: Telegraf Docker secret store читает байты файла непосредственно, поэтому перевод строки попал бы в HTTP `Authorization` header. При следующем `make init` старый token, созданный предыдущей версией скрипта, нормализуется удалением только завершающего LF/CRLF; само значение token не ротируется.
 
 Для Mosquitto файл `.secrets/mosquitto_passwords` содержит только Argon2id hash. При старте контейнер копирует его из read-only Compose secret в приватный `tmpfs`, назначает владельца UID/GID `1883` и режим `0600`; исходный plaintext остаётся только в `.secrets/mosquitto_password`.
 
@@ -115,7 +120,7 @@ cat .secrets/grafana_admin_password
 - **`iot`:** Mosquitto 2.1 с password-file/SQLite plugins и openHAB.
 - **`test`:** одноразовый k6.
 
-Сети разделены по назначению:
+Сети разделены по назначению. При default `HOMELAB_PROJECT_NAME=homelab` их имена остаются прежними:
 
 - `homelab_proxy` — HTTP-приложения за Traefik;
 - `homelab_backend` — закрытый metrics backend;
@@ -143,7 +148,7 @@ Renovate предлагает обновления отдельными pull req
 
 ## Данные и резервные копии
 
-Состояние хранится в именованных volumes с префиксом `homelab_`. `make down` их не удаляет.
+Состояние хранится в именованных volumes с префиксом из `HOMELAB_PROJECT_NAME`; default остаётся `homelab_`. `make down` их не удаляет.
 
 Пример архивирования Grafana:
 
@@ -182,28 +187,48 @@ Bridge-сеть и Traefik дают переносимый безопасный 
 
 k3s не запускается внутри этого Compose-проекта. Причины и безопасный вариант совместной установки описаны в [`docs/K3S.md`](docs/K3S.md).
 
-## Проверка
+## Три уровня проверки
 
-Быстрая локальная проверка конфигурации:
+### 1. Быстрая конфигурационная проверка
 
 ```bash
 make check
 ```
 
-Она отклоняет:
+Проверяет static policies, unit/behavior tests, shell syntax и полностью объединённую Compose-модель. Контейнеры приложений не запускаются. Проверка отклоняет:
 
 - невалидные Compose, JSON и TOML;
 - нарушения идемпотентности и прав доступа при локальной генерации credentials;
+- newline-terminated raw tokens, которые нельзя безопасно передавать в HTTP headers;
 - отсутствующие roadmap-сервисы;
 - `latest` и неявные image tags;
 - известные ранее опубликованные credentials;
 - destructive host-wide команды;
 - случайно отслеживаемые `.env` или `.secrets/`.
 
-Отдельная сетевая проверка опубликованных образов:
+### 2. Проверка registry manifests
 
 ```bash
 make check-images
 ```
 
-Она получает через Docker Buildx только registry manifests, не скачивает слои образов и не запускает сервисы. Проверка завершается ошибкой, если tag отсутствует либо образ не публикует оба поддерживаемых варианта: `linux/amd64` и `linux/arm64`.
+Получает через Docker Buildx только registry manifests, не скачивает слои образов и не запускает сервисы. Проверка завершается ошибкой, если tag отсутствует либо образ не публикует оба поддерживаемых варианта: `linux/amd64` и `linux/arm64`.
+
+### 3. Изолированная runtime-проверка
+
+```bash
+make check-runtime
+```
+
+Создаёт одноразовый Compose-проект с уникальными именами сетей и ресурсов, заменяет данные InfluxDB, Grafana и Portainer на `tmpfs`, публикует Traefik только на случайном порту `127.0.0.1` и запускает core + monitoring + Portainer.
+
+Проверяются:
+
+- `401` без Basic Auth и `200` с ним для whoami и Traefik dashboard;
+- health endpoints InfluxDB и Grafana;
+- Portainer status endpoint;
+- provisioned InfluxDB datasource в Grafana;
+- появление реальной measurement `system` от Telegraf в InfluxDB;
+- гарантированный scoped cleanup с удалением только одноразовых runtime volumes.
+
+Проверка скачивает отсутствующие image layers и занимает заметно больше времени. Она не запускает Netdata, Mosquitto, openHAB или k6 и не читает рабочие `.env`/`.secrets/`.

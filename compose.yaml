@@ -1,4 +1,4 @@
-name: homelab
+name: ${HOMELAB_PROJECT_NAME:-homelab}
 
 services:
   docker-socket-proxy:
@@ -41,12 +41,12 @@ services:
       - --providers.docker=true
       - --providers.docker.endpoint=tcp://docker-socket-proxy:2375
       - --providers.docker.exposedbydefault=false
-      - --providers.docker.network=homelab_proxy
+      - --providers.docker.network=${HOMELAB_PROJECT_NAME:-homelab}_proxy
       - --entrypoints.web.address=:80
       - --accesslog=true
       - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
     ports:
-      - "${HTTP_PORT:-80}:80"
+      - "${HTTP_HOST_IP:-0.0.0.0}:${HTTP_PORT:-80}:80"
     secrets:
       - traefik_users
     networks:
@@ -65,7 +65,7 @@ services:
       start_period: 5s
     labels:
       traefik.enable: "true"
-      traefik.docker.network: homelab_proxy
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
       traefik.http.routers.traefik.rule: Host(`traefik.${BASE_DOMAIN:-localhost}`)
       traefik.http.routers.traefik.entrypoints: web
       traefik.http.routers.traefik.service: api@internal
@@ -82,7 +82,7 @@ services:
     read_only: true
     labels:
       traefik.enable: "true"
-      traefik.docker.network: homelab_proxy
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
       traefik.http.routers.whoami.rule: Host(`whoami.${BASE_DOMAIN:-localhost}`)
       traefik.http.routers.whoami.entrypoints: web
       traefik.http.routers.whoami.middlewares: local-auth@docker
@@ -120,7 +120,7 @@ services:
       start_period: 30s
     labels:
       traefik.enable: "true"
-      traefik.docker.network: homelab_proxy
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
       traefik.http.routers.influxdb.rule: Host(`influxdb.${BASE_DOMAIN:-localhost}`)
       traefik.http.routers.influxdb.entrypoints: web
       traefik.http.services.influxdb.loadbalancer.server.port: "8086"
@@ -195,7 +195,7 @@ services:
       start_period: 30s
     labels:
       traefik.enable: "true"
-      traefik.docker.network: homelab_proxy
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
       traefik.http.routers.grafana.rule: Host(`grafana.${BASE_DOMAIN:-localhost}`)
       traefik.http.routers.grafana.entrypoints: web
       traefik.http.services.grafana.loadbalancer.server.port: "3000"
@@ -214,7 +214,7 @@ services:
       - no-new-privileges:true
     labels:
       traefik.enable: "true"
-      traefik.docker.network: homelab_proxy
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
       traefik.http.routers.portainer.rule: Host(`portainer.${BASE_DOMAIN:-localhost}`)
       traefik.http.routers.portainer.entrypoints: web
       traefik.http.services.portainer.loadbalancer.server.port: "9000"
@@ -296,7 +296,7 @@ services:
       - no-new-privileges:true
     labels:
       traefik.enable: "true"
-      traefik.docker.network: homelab_proxy
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
       traefik.http.routers.openhab.rule: Host(`openhab.${BASE_DOMAIN:-localhost}`)
       traefik.http.routers.openhab.entrypoints: web
       traefik.http.services.openhab.loadbalancer.server.port: "8080"
@@ -321,39 +321,39 @@ services:
 
 networks:
   proxy:
-    name: homelab_proxy
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
   backend:
-    name: homelab_backend
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_backend
     internal: true
   socket:
-    name: homelab_socket
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_socket
     internal: true
   iot:
-    name: homelab_iot
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_iot
 
 volumes:
   influxdb_data:
-    name: homelab_influxdb_data
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_influxdb_data
   influxdb_config:
-    name: homelab_influxdb_config
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_influxdb_config
   grafana_data:
-    name: homelab_grafana_data
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_grafana_data
   portainer_data:
-    name: homelab_portainer_data
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_portainer_data
   netdata_config:
-    name: homelab_netdata_config
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_netdata_config
   netdata_lib:
-    name: homelab_netdata_lib
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_netdata_lib
   netdata_cache:
-    name: homelab_netdata_cache
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_netdata_cache
   mosquitto_data:
-    name: homelab_mosquitto_data
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_mosquitto_data
   openhab_addons:
-    name: homelab_openhab_addons
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_addons
   openhab_conf:
-    name: homelab_openhab_conf
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_conf
   openhab_userdata:
-    name: homelab_openhab_userdata
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_userdata
 
 secrets:
   influxdb_username:
