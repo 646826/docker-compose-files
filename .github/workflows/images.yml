@@ -46,4 +46,16 @@ jobs:
         run: docker buildx version
 
       - name: Verify image tags and platforms
-        run: make check-images
+        shell: bash
+        run: |
+          set -o pipefail
+          make check-images 2>&1 | tee image-platforms.log
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-platforms-log
+          path: image-platforms.log
+          if-no-files-found: error
+          retention-days: 3
