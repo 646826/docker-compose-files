@@ -1,0 +1,67 @@
+name: Runtime smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "compose.yaml"
+      - "compose.runtime.yaml"
+      - ".env.example"
+      - "Makefile"
+      - "config/**"
+      - "scripts/init.sh"
+      - "scripts/check_runtime.sh"
+      - "scripts/test_runtime.py"
+      - ".github/workflows/runtime.yml"
+  pull_request:
+    paths:
+      - "compose.yaml"
+      - "compose.runtime.yaml"
+      - ".env.example"
+      - "Makefile"
+      - "config/**"
+      - "scripts/init.sh"
+      - "scripts/check_runtime.sh"
+      - "scripts/test_runtime.py"
+      - ".github/workflows/runtime.yml"
+  schedule:
+    - cron: "47 4 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Start and verify default stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Verify Docker and Compose
+        run: |
+          docker version
+          docker compose version
+
+      - name: Run isolated runtime smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          make check-runtime 2>&1 | tee runtime-smoke.log
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-smoke-log
+          path: runtime-smoke.log
+          if-no-files-found: error
+          retention-days: 3
