@@ -259,7 +259,7 @@ services:
         chmod 0600 /run/mosquitto/passwords
         exec /docker-entrypoint.sh /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf
     ports:
-      - "${MQTT_PORT:-1883}:1883"
+      - "${MQTT_HOST_IP:-0.0.0.0}:${MQTT_PORT:-1883}:1883"
     secrets:
       - mosquitto_passwords
     volumes:
