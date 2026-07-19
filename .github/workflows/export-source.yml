@@ -1,0 +1,27 @@
+name: Export source snapshot
+
+on:
+  push:
+    branches:
+      - feat/iot-runtime-smoke-tests
+    paths:
+      - ".github/workflows/export-source.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-snapshot
+          path: |
+            scripts/check_static.py
+            README.md
+            SECURITY.md
+          if-no-files-found: error
+          retention-days: 1
