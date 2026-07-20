@@ -41,16 +41,25 @@ jobs:
 
           path = Path("tools/apply_consistency_v2.py")
           text = path.read_text(encoding="utf-8")
-          old = '''    forbidden = ("tools/", "apply-consistency.yml")
+
+          old_transport = '''    forbidden = ("tools/", "apply-consistency.yml")
               final_diff = subprocess.run(
                   ["git", "diff", "--name-only", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True
               ).stdout
               if any(value in final_diff for value in forbidden):
                   raise SystemExit("transport paths remain in the working-tree diff")
           '''
-          if old not in text:
+          if old_transport not in text:
               raise SystemExit("expected final transport check was not found")
-          path.write_text(text.replace(old, "", 1), encoding="utf-8")
+          text = text.replace(old_transport, "", 1)
+
+          old_readme_write = '    write("README.md", readme.rstrip() + section + "\\n")\n'
+          new_readme_write = '    write("README.md", readme.rstrip() + section.rstrip() + "\\n")\n'
+          if old_readme_write not in text:
+              raise SystemExit("expected README write was not found")
+          text = text.replace(old_readme_write, new_readme_write, 1)
+
+          path.write_text(text, encoding="utf-8")
           PY
           python3 tools/apply_consistency_v2.py 2>&1 | tee -a apply-consistency.log
 
