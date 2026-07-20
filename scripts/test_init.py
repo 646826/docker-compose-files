@@ -182,6 +182,8 @@ MOSQUITTO_USERNAME=test-mqtt
         docker_calls = docker_log.read_text(encoding="utf-8")
         if "mosquitto_passwd -b" in docker_calls:
             fail("bootstrap exposes the Mosquitto password through batch-mode arguments")
+        if "mosquitto_passwd -U" in docker_calls:
+            fail("bootstrap still carries the obsolete Mosquitto plaintext-conversion command")
         if "mosquitto_passwd -H sha512-pbkdf2 -I 220000 -c" not in docker_calls:
             fail("bootstrap does not explicitly create a 220000-iteration SHA512-PBKDF2 record")
         if "mosquitto_passwd -H argon2id" in docker_calls:

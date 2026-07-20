@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.check_images import (  # noqa: E402
+    PLACEHOLDER_SECRETS,
     BACKUP_HELPER_IMAGE,
     compose_images,
     helper_images,
@@ -60,6 +61,14 @@ OTHER_IMAGE=ignored:1
 
 
 class LocalComposeInputTests(unittest.TestCase):
+    def test_mosquitto_placeholder_matches_supported_pbkdf2_shape(self) -> None:
+        value = PLACEHOLDER_SECRETS["mosquitto_passwords"]
+        self.assertEqual(
+            value,
+            "manifest-check:$7$220000$placeholder$placeholder",
+        )
+        self.assertNotIn("argon2id", value.lower())
+
     def test_prefers_local_env_and_falls_back_to_example(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -104,6 +113,13 @@ class LocalComposeInputTests(unittest.TestCase):
 
             with temporary_secret_placeholders(root):
                 self.assertTrue((root / ".secrets").is_dir())
+                generated = (root / ".secrets" / "mosquitto_passwords").read_text(
+                    encoding="utf-8"
+                ).strip()
+                self.assertEqual(
+                    generated,
+                    PLACEHOLDER_SECRETS["mosquitto_passwords"],
+                )
 
             self.assertFalse((root / ".secrets").exists())
 

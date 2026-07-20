@@ -139,6 +139,7 @@ cat .secrets/grafana_admin_password
 | Компонент | Версия образа |
 | --- | --- |
 | Bootstrap helper Apache httpd | `2.4.68` |
+| Backup helper Alpine | `3.24.1` |
 | Docker socket proxy | `0.4.2` |
 | Traefik | `3.7.8` |
 | whoami | `1.11.0` |
@@ -185,7 +186,7 @@ Bridge-сеть и Traefik дают переносимый безопасный 
 
 k3s не запускается внутри этого Compose-проекта. Причины и безопасный вариант совместной установки описаны в [`docs/K3S.md`](docs/K3S.md).
 
-## Четыре уровня проверки
+## Пять уровней проверки
 
 ### 1. Быстрая конфигурационная проверка
 
@@ -248,3 +249,13 @@ make check-iot-runtime
 - отсутствие MQTT password в process arguments и гарантированный scoped cleanup.
 
 Проверка скачивает отсутствующие layers Mosquitto/openHAB и рассчитана только на Linux Docker Engine. Она не устанавливает openHAB MQTT Binding, не завершает setup wizard и не проверяет UPnP, multicast, USB или другое оборудование.
+
+### 5. Изолированная backup/restore runtime-проверка
+
+```bash
+make check-backup-runtime
+```
+
+Создаёт уникальные одноразовые local volumes с вложенными текстовыми и бинарными файлами, пустым файлом, нестандартными permissions и безопасным относительным symlink. Затем выполняет cold backup, офлайн-проверку, удаление source volumes и side-by-side restore в другой project name.
+
+Проверка сравнивает bytes и существенные filesystem metadata, подтверждает отказ для повреждённого snapshot и непустого target volume, а затем удаляет только собственные fixture-ресурсы. Она не запускает приложения homelab и не читает рабочие `.env` или `.secrets/`; подробная процедура восстановления находится в [`docs/BACKUP.md`](docs/BACKUP.md).

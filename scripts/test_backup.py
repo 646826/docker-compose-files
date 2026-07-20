@@ -486,5 +486,43 @@ class BackupTests(unittest.TestCase):
             self.assertNotIn("Traceback", bad.stderr)
 
 
+class ConsolidatedBackupRegressionTests(unittest.TestCase):
+    def test_tar_rejects_non_directory_root_member(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            archive_path = Path(directory) / "regular-root.tar.gz"
+            member = tarfile.TarInfo("./")
+            member.size = 1
+            with tarfile.open(archive_path, "w:gz") as archive:
+                archive.addfile(member, io.BytesIO(b"x"))
+            with self.assertRaisesRegex(backup.BackupError, "root member"):
+                backup.inspect_archive(archive_path)
+
+    def test_later_restore_failure_reports_populated_preexisting_volume(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            snapshot = build_snapshot(
+                Path(directory),
+                declared=("grafana_data", "mosquitto_data"),
+                archived=("grafana_data", "mosquitto_data"),
+            )
+            docker = FakeDocker()
+            preexisting = "recovery_grafana_data"
+            failing_created = "recovery_mosquitto_data"
+            docker.volumes[preexisting] = {
+                "Name": preexisting,
+                "Driver": "local",
+                "Options": {},
+                "Labels": {},
+            }
+            docker.empty[preexisting] = True
+            docker.fail_restore_for = failing_created
+            with self.assertRaisesRegex(
+                backup.BackupError,
+                "pre-existing volumes may be partially populated: recovery_grafana_data",
+            ):
+                backup.restore_snapshot(snapshot, "recovery", docker)
+            self.assertIn(preexisting, docker.volumes)
+            self.assertNotIn(failing_created, docker.volumes)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -46,11 +46,10 @@ def check_hashing_contract(label: str, script: str) -> None:
     for forbidden in (
         "mosquitto_passwd -H argon2id",
         "mosquitto_passwd -b",
+        "mosquitto_passwd -U",
     ):
         if forbidden in script:
             error(f"{label} contains unsupported or unsafe password hashing behavior: {forbidden}")
-    if re.search(r"(?m)^\s*mosquitto_passwd -U(?:\s|$)", script):
-        error(f"{label} must not execute the legacy plaintext conversion mode")
 
 
 def main() -> int:

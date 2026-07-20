@@ -37,9 +37,7 @@ PLACEHOLDER_SECRETS = {
     "influxdb_token": "manifest-check",
     "grafana_admin_password": "manifest-check",
     "traefik_users": "manifest-check:$2y$12$placeholder",
-    "mosquitto_passwords": (
-        "manifest-check:$argon2id$v=19$m=19456,t=2,p=1$placeholder$placeholder"
-    ),
+    "mosquitto_passwords": "manifest-check:$7$220000$placeholder$placeholder",
 }
 
 

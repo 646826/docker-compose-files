@@ -422,6 +422,18 @@ def main() -> int:
             error("README must name both maintained image platforms")
         if "docs/BACKUP.md" not in readme or "make backup" not in readme:
             error("README must document the verified backup workflow")
+        required_verification_docs = (
+            "## Пять уровней проверки",
+            "make check",
+            "make check-images",
+            "make check-runtime",
+            "make check-iot-runtime",
+            "make check-backup-runtime",
+            "| Backup helper Alpine | `3.24.1` |",
+        )
+        for fragment in required_verification_docs:
+            if fragment not in readme:
+                error(f"README verification model is missing: {fragment}")
 
     k3s_doc = read_required("docs/K3S.md")
     if k3s_doc:
@@ -442,8 +454,6 @@ def main() -> int:
             error("Mosquitto bootstrap helper image must be pinned")
         if "mosquitto_passwd -b" in init_script:
             error("Mosquitto bootstrap must not expose passwords through batch-mode arguments")
-        if "mosquitto_passwd -U" not in init_script:
-            error("Mosquitto bootstrap must convert plaintext input with mosquitto_passwd -U")
 
     mosquitto_path = ROOT / "config/mosquitto/mosquitto.conf"
     if mosquitto_path.is_file():
@@ -498,9 +508,32 @@ def main() -> int:
     renovate_path = ROOT / "renovate.json"
     if renovate_path.is_file():
         try:
-            json.loads(renovate_path.read_text(encoding="utf-8"))
+            renovate = json.loads(renovate_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             error(f"renovate.json is invalid: {exc}")
+        else:
+            managers = renovate.get("customManagers", [])
+            covered = False
+            if isinstance(managers, list):
+                for manager in managers:
+                    if not isinstance(manager, dict):
+                        continue
+                    patterns = manager.get("managerFilePatterns", [])
+                    matches = manager.get("matchStrings", [])
+                    if (
+                        manager.get("datasourceTemplate") == "docker"
+                        and isinstance(patterns, list)
+                        and any("scripts\\/backup\\.py" in value for value in patterns if isinstance(value, str))
+                        and isinstance(matches, list)
+                        and any(
+                            "HELPER_IMAGE" in value and "depName" in value and "currentValue" in value
+                            for value in matches if isinstance(value, str)
+                        )
+                    ):
+                        covered = True
+                        break
+            if not covered:
+                error("Renovate must discover HELPER_IMAGE in scripts/backup.py through the Docker datasource")
 
     tracked_secret_check()
     scan_operational_files()
