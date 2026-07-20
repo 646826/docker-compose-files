@@ -1,0 +1,53 @@
+name: Apply consistency and simplification
+
+on:
+  push:
+    branches:
+      - feat/consistency-and-simplification
+    paths:
+      - "tools/apply_consistency_changes.py"
+      - ".github/workflows/apply-consistency.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-consistency-and-simplification
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v6
+        with:
+          ref: feat/consistency-and-simplification
+          fetch-depth: 0
+
+      - name: Execute focused RED to GREEN cycles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/apply_consistency_changes.py 2>&1 | tee apply-consistency.log
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apply-consistency-log
+          path: apply-consistency.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Commit verified changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix: align repository consistency contracts"
+          git push origin HEAD:feat/consistency-and-simplification
