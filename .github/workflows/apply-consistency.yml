@@ -7,13 +7,17 @@ on:
     paths:
       - "tools/apply_consistency_changes.py"
       - ".github/workflows/apply-consistency.yml"
+  pull_request:
+    paths:
+      - "tools/apply_consistency_changes.py"
+      - ".github/workflows/apply-consistency.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: apply-consistency-and-simplification
+  group: apply-consistency-and-simplification-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
