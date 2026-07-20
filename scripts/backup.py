@@ -971,16 +971,15 @@ def restore_snapshot(snapshot: Path, project: str, docker: DockerAPI) -> list[st
         plan.append((logical, name, snapshot_path / PurePosixPath(archive_relative), existed))
 
     created: list[str] = []
-    current_name: str | None = None
-    current_preexisting = False
+    touched_preexisting: list[str] = []
     try:
         for logical, name, _archive, existed in plan:
             if not existed:
                 docker.create_volume(name, project, logical)
                 created.append(name)
         for _logical, name, archive, existed in plan:
-            current_name = name
-            current_preexisting = existed
+            if existed:
+                touched_preexisting.append(name)
             docker.stream_restore(archive, name)
         return [name for _logical, name, _archive, _existed in plan]
     except Exception as exc:
@@ -991,8 +990,10 @@ def restore_snapshot(snapshot: Path, project: str, docker: DockerAPI) -> list[st
             except Exception as cleanup_exc:  # pragma: no cover - real Docker diagnostic path
                 cleanup_errors.append(f"{name}: {cleanup_exc}")
         detail = str(exc)
-        if current_name is not None and current_preexisting:
-            detail += f"; pre-existing volume {current_name} may be partially populated"
+        if touched_preexisting:
+            detail += "; pre-existing volumes may be partially populated: " + ", ".join(
+                touched_preexisting
+            )
         if cleanup_errors:
             detail += f"; cleanup failures: {', '.join(cleanup_errors)}"
         if isinstance(exc, BackupError):
