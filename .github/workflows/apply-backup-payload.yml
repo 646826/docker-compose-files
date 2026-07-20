@@ -1,4 +1,5 @@
 name: Apply verified backup payload
+# Triggered separately after all payload parts are present.
 
 on:
   push:
