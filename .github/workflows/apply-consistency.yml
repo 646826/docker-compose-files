@@ -36,25 +36,23 @@ jobs:
         run: |
           set -euo pipefail
           : > apply-consistency.log
-          {
-            python3 - <<'PY'
-            from pathlib import Path
+          python3 - <<'PY' 2>&1 | tee -a apply-consistency.log
+          from pathlib import Path
 
-            path = Path("tools/apply_consistency_v2.py")
-            text = path.read_text(encoding="utf-8")
-            old = '''    forbidden = ("tools/", "apply-consistency.yml")
-                final_diff = subprocess.run(
-                    ["git", "diff", "--name-only", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True
-                ).stdout
-                if any(value in final_diff for value in forbidden):
-                    raise SystemExit("transport paths remain in the working-tree diff")
-            '''
-            if old not in text:
-                raise SystemExit("expected final transport check was not found")
-            path.write_text(text.replace(old, "", 1), encoding="utf-8")
-            PY
-            python3 tools/apply_consistency_v2.py
-          } 2>&1 | tee apply-consistency.log
+          path = Path("tools/apply_consistency_v2.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''    forbidden = ("tools/", "apply-consistency.yml")
+              final_diff = subprocess.run(
+                  ["git", "diff", "--name-only", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True
+              ).stdout
+              if any(value in final_diff for value in forbidden):
+                  raise SystemExit("transport paths remain in the working-tree diff")
+          '''
+          if old not in text:
+              raise SystemExit("expected final transport check was not found")
+          path.write_text(text.replace(old, "", 1), encoding="utf-8")
+          PY
+          python3 tools/apply_consistency_v2.py 2>&1 | tee -a apply-consistency.log
 
       - name: Upload failure diagnostics
         if: failure()
