@@ -31,7 +31,7 @@ jobs:
           ref: feat/consistency-and-simplification
           fetch-depth: 0
 
-      - name: Make the staged applicator idempotent
+      - name: Adapt the staged applicator to the current tree
         shell: bash
         run: |
           set -euo pipefail
@@ -40,7 +40,8 @@ jobs:
 
           path = Path("tools/apply_consistency_changes.py")
           text = path.read_text(encoding="utf-8")
-          old = '''    replace_exact(
+
+          old_comment_block = '''    replace_exact(
                   "scripts/init.sh",
                   "# mosquitto_passwd -U is intentionally not executed: the official Mosquitto\\n"
                   "# 2.1.2 images do not compile Argon2 support, so create a supported PBKDF2 file.\\n",
@@ -48,7 +49,7 @@ jobs:
                   "# a supported SHA512-PBKDF2 password file directly with an explicit work factor.\\n",
               )
           '''
-          new = '''    old_comment = (
+          new_comment_block = '''    old_comment = (
                   "# mosquitto_passwd -U is intentionally not executed: the official Mosquitto\\n"
                   "# 2.1.2 images do not compile Argon2 support, so create a supported PBKDF2 file.\\n"
               )
@@ -62,9 +63,22 @@ jobs:
               elif new_comment not in init_text:
                   raise SystemExit("scripts/init.sh contains neither expected Mosquitto comment")
           '''
-          if old not in text:
+          if old_comment_block not in text:
               raise SystemExit("expected phase-one comment replacement block was not found")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          text = text.replace(old_comment_block, new_comment_block, 1)
+
+          old_import = '''        "from scripts.check_images import (  # noqa: E402\\n"
+                  "    compose_images,\\n",
+          '''
+          new_import = '''        "from scripts.check_images import (  # noqa: E402\\n"
+                  "    BACKUP_HELPER_IMAGE,\\n"
+                  "    compose_images,\\n",
+          '''
+          if old_import not in text:
+              raise SystemExit("expected image-test import replacement was not found")
+          text = text.replace(old_import, new_import, 1)
+
+          path.write_text(text, encoding="utf-8")
           PY
 
       - name: Execute focused RED to GREEN cycles
