@@ -8,13 +8,17 @@ on:
     paths:
       - "tools/backup-payload.part*"
       - ".github/workflows/apply-backup-payload.yml"
+  pull_request:
+    paths:
+      - "tools/backup-payload.part*"
+      - ".github/workflows/apply-backup-payload.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: apply-verified-backup-payload
+  group: apply-verified-backup-payload-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
