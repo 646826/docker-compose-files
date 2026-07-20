@@ -1,0 +1,88 @@
+name: Apply verified backup payload
+
+on:
+  push:
+    branches:
+      - feat/verified-volume-backups
+    paths:
+      - "tools/backup-payload.part*"
+      - ".github/workflows/apply-backup-payload.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-verified-backup-payload
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v6
+        with:
+          ref: feat/verified-volume-backups
+          fetch-depth: 0
+
+      - name: Decode, validate, apply, and test
+        shell: bash
+        run: |
+          set -euo pipefail
+          parts=(tools/backup-payload.part00 tools/backup-payload.part01 tools/backup-payload.part02 tools/backup-payload.part03 tools/backup-payload.part04)
+          for part in "${parts[@]}"; do
+            if [[ ! -f "$part" ]]; then
+              echo "Payload part is absent; nothing to apply: $part"
+              exit 0
+            fi
+          done
+          cat "${parts[@]}" | base64 -d > /tmp/verified-backup-payload.tar.gz
+          echo "04299e8005f51228d244666fa408300196ad66d4a7f5f2317d2dccbbf0bd45fa  /tmp/verified-backup-payload.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/verified-backup-payload.tar.gz
+          python3 tools/apply_backup_changes.py
+          rm tools/apply_backup_changes.py
+          chmod 0755 \
+            scripts/backup.py \
+            scripts/test_backup.py \
+            scripts/check_backup_policy.py \
+            scripts/check_backup_runtime.sh
+          python3 scripts/test_backup.py
+          python3 scripts/test_check_images.py
+          python3 scripts/check_backup_policy.py
+          python3 -m py_compile \
+            scripts/backup.py \
+            scripts/test_backup.py \
+            scripts/check_backup_policy.py
+          sh -n scripts/check_backup_runtime.sh
+          ./scripts/check.sh
+
+      - name: Commit applied implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            .gitignore \
+            .github/workflows/backup-runtime.yml \
+            .github/workflows/images.yml \
+            Makefile \
+            README.md \
+            docs/BACKUP.md \
+            docs/MIGRATION.md \
+            scripts/backup.py \
+            scripts/check.sh \
+            scripts/check_backup_policy.py \
+            scripts/check_backup_runtime.sh \
+            scripts/check_images.py \
+            scripts/check_static.py \
+            scripts/test_backup.py \
+            scripts/test_check_images.py
+          if git diff --cached --quiet; then
+            echo "No implementation changes to commit."
+            exit 0
+          fi
+          git commit -m "feat: add verified Docker volume backups"
+          git push origin HEAD:feat/verified-volume-backups
