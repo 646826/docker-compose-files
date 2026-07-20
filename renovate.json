@@ -16,6 +16,17 @@
         "(?<depType>[A-Z_]+)_IMAGE=(?<depName>[^:\\s]+):(?<currentValue>[^\\s]+)"
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Update the backup helper container image used by scripts/backup.py",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts\\/backup\\.py$/"
+      ],
+      "matchStrings": [
+        "HELPER_IMAGE\\s*=\\s*\"(?<depName>[^:\\s\"]+):(?<currentValue>[^\\s\"]+)\""
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [

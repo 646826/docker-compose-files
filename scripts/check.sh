@@ -26,7 +26,6 @@ python3 scripts/test_check_images.py
 python3 scripts/test_runtime.py
 python3 scripts/test_iot_runtime.py
 python3 scripts/test_backup.py
-python3 scripts/test_backup_tar_root.py
 
 for script in scripts/*.sh; do
   sh -n "$script"

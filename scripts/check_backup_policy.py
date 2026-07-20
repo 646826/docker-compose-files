@@ -151,10 +151,14 @@ def main() -> int:
         "test_restore_refuses_non_empty_target_before_creating_any_volume",
         "test_failed_restore_removes_only_created_volumes",
         "test_cli_verify_has_no_traceback",
+        "test_tar_rejects_non_directory_root_member",
+        "test_later_restore_failure_reports_populated_preexisting_volume",
     )
     for name in required_test_names:
         if name not in tests:
             error(f"backup behavioral contract is missing: {name}")
+    if (ROOT / "scripts/test_backup_tar_root.py").exists():
+        error("backup regressions must live in scripts/test_backup.py, not a separate test file")
 
     required_runtime = (
         "HOMELAB_PROJECT_NAME=\"$PROJECT\" BACKUP_ROOT=\"$BACKUP_ROOT\"",
@@ -202,6 +206,12 @@ def main() -> int:
         error("README must link to docs/BACKUP.md")
     if "docs/BACKUP.md" not in migration:
         error("migration guide must link to docs/BACKUP.md")
+    for fragment in (
+        "### 5. Изолированная backup/restore runtime-проверка",
+        "make check-backup-runtime",
+    ):
+        if fragment not in readme:
+            error(f"README backup verification documentation is missing: {fragment}")
 
     for executable in ("scripts/backup.py", "scripts/check_backup_runtime.sh"):
         path = ROOT / executable
