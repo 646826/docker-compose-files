@@ -79,5 +79,3 @@ logs: init ## Follow logs from every profile
 
 down: ## Stop this project and preserve all named volumes
 	@$(COMPOSE) $(ALL_PROFILES) down --remove-orphans
-
-# Temporary final-verification trigger; removed by the next commit.
