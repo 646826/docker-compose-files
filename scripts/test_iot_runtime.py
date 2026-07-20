@@ -243,6 +243,7 @@ class IoTRuntimeHarnessTests(unittest.TestCase):
         self.assertIn("-o /run/mosquitto-client.conf", docker_log)
         self.assertIn("mosquitto_passwd -H sha512-pbkdf2 -I 220000 -c", docker_log)
         self.assertNotIn("mosquitto_passwd -H argon2id", docker_log)
+        self.assertNotIn("mosquitto_passwd -U", docker_log)
         self.assertNotRegex(docker_log, r"(^| )-P( |$)")
         self.assertNotIn("p" * 36, docker_log)
         curl_log = self.curl_log.read_text(encoding="utf-8")
