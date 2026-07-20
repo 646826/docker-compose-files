@@ -36,6 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          exec > >(tee apply-payload.log) 2>&1
           parts=(tools/backup-payload.part00 tools/backup-payload.part01 tools/backup-payload.part02 tools/backup-payload.part03 tools/backup-payload.part04)
           for part in "${parts[@]}"; do
             if [[ ! -f "$part" ]]; then
@@ -62,6 +63,15 @@ jobs:
             scripts/check_backup_policy.py
           sh -n scripts/check_backup_runtime.sh
           ./scripts/check.sh
+
+      - name: Upload apply diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apply-backup-payload-log
+          path: apply-payload.log
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Commit applied implementation
         shell: bash
