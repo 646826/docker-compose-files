@@ -78,6 +78,19 @@ jobs:
               raise SystemExit("expected image-test import replacement was not found")
           text = text.replace(old_import, new_import, 1)
 
+          incomplete_replacement = '''        "from scripts.check_images import (  # noqa: E402\\n"
+                  "    PLACEHOLDER_SECRETS,\\n"
+                  "    compose_images,\\n",
+          '''
+          complete_replacement = '''        "from scripts.check_images import (  # noqa: E402\\n"
+                  "    PLACEHOLDER_SECRETS,\\n"
+                  "    BACKUP_HELPER_IMAGE,\\n"
+                  "    compose_images,\\n",
+          '''
+          if incomplete_replacement not in text:
+              raise SystemExit("expected image-test replacement output was not found")
+          text = text.replace(incomplete_replacement, complete_replacement, 1)
+
           path.write_text(text, encoding="utf-8")
           PY
 
