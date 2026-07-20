@@ -1,0 +1,59 @@
+name: Apply restore diagnostics fix
+
+on:
+  push:
+    branches:
+      - feat/verified-volume-backups
+    paths:
+      - "tools/apply_restore_diagnostics.py"
+      - "scripts/test_backup_tar_root.py"
+      - ".github/workflows/apply-restore-diagnostics-fix.yml"
+  pull_request:
+    paths:
+      - "tools/apply_restore_diagnostics.py"
+      - "scripts/test_backup_tar_root.py"
+      - ".github/workflows/apply-restore-diagnostics-fix.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-restore-diagnostics-fix-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v6
+        with:
+          ref: feat/verified-volume-backups
+          fetch-depth: 0
+
+      - name: Apply exact patch and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/apply_restore_diagnostics.py
+          python3 scripts/test_backup.py
+          python3 scripts/test_backup_tar_root.py
+          python3 -m py_compile scripts/backup.py scripts/test_backup.py scripts/test_backup_tar_root.py
+          ./scripts/check.sh
+
+      - name: Commit production fix
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add scripts/backup.py
+          if git diff --cached --quiet; then
+            echo "No production change to commit."
+            exit 0
+          fi
+          git commit -m "fix: report all touched pre-existing restore volumes"
+          git push origin HEAD:feat/verified-volume-backups
