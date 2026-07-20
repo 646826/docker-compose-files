@@ -180,6 +180,8 @@ def inspect_archive(path: Path) -> tuple[int, int]:
         with tarfile.open(path, mode="r:gz") as archive:
             for member in archive:
                 canonical = _canonical_member_name(member.name)
+                if not canonical and not member.isdir():
+                    raise BackupError("tar archive root member must be a directory")
                 if canonical in seen:
                     raise BackupError(f"duplicate tar member: {member.name}")
                 seen.add(canonical)
