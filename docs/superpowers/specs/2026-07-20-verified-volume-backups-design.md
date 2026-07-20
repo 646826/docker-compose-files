@@ -91,7 +91,7 @@ The implementation uses only Python 3.11+ standard-library modules and the Docke
 `scripts/backup.py` owns:
 
 - project-name and path validation;
-- the authoritative logical volume inventory;
+- the authoritative current logical volume inventory;
 - Docker preflight checks;
 - snapshot directory creation and atomic publication;
 - streaming archive creation and extraction;
@@ -205,7 +205,9 @@ The snapshot identifier contains:
 - UTC timestamp with second precision;
 - eight random hexadecimal characters.
 
-The backup root and snapshot directory use mode `0700`. Snapshot files use mode `0600` because application volumes may contain private dashboards, tokens stored inside databases, personal automation configuration, or other sensitive state even though `.secrets/` is excluded.
+When the backup root does not exist, the tool creates it with mode `0700`. An existing backup root must be a real directory, not a symlink, and must have no group or other permission bits. The tool refuses an unsafe existing root rather than changing permissions on a user-selected directory.
+
+The snapshot directory uses mode `0700`. Snapshot files use mode `0600` because application volumes may contain private dashboards, tokens stored inside databases, personal automation configuration, or other sensitive state even though `.secrets/` is excluded.
 
 ## Atomic publication
 
@@ -243,9 +245,13 @@ Top-level structure:
   "created_at": "2026-07-20T12:00:00Z",
   "source_project": "homelab",
   "source_git_commit": "defa081b5c5dd1699e5d8d2c9623438fad67e113",
+  "source_git_dirty": false,
   "helper_image": "alpine:3.24.1",
   "container_images": [
     "grafana/grafana:13.1.0"
+  ],
+  "declared_volumes": [
+    "grafana_data"
   ],
   "volumes": [],
   "missing_volumes": []
@@ -270,20 +276,27 @@ Each archived-volume object contains exactly:
 Rules:
 
 - unknown top-level and volume-entry keys are rejected for format version 1;
-- logical names must be unique and belong to the committed inventory;
+- `declared_volumes` is a sorted, unique, non-empty list captured at snapshot creation;
+- logical names in archived and missing entries must belong to `declared_volumes`;
 - archived and missing logical names must be disjoint;
-- together, archived and missing names must equal the complete inventory;
+- together, archived and missing names must equal `declared_volumes`;
 - paths must use forward slashes and remain beneath the snapshot root;
 - archive size must match the file on disk;
 - archive hash must match both the manifest and `SHA256SUMS`;
 - `container_images` is the sorted unique set of pinned service and helper image references present in the repository at snapshot creation;
-- Git commit is `null` only when the source directory is not a Git checkout.
+- Git commit and dirty state are `null` only when the source directory is not a Git checkout.
+
+The self-contained `declared_volumes` list keeps format-version-1 snapshots verifiable after a future repository revision adds or removes a current Compose volume. Verification may report a compatibility warning when the snapshot inventory differs from the current repository, but the snapshot remains valid.
+
+Restore is stricter than verification: every archived logical name must be supported by the current repository before Docker resources are created. An older snapshot that lacks a newly introduced current volume may still be restored; the new volume remains absent until Compose creates it. A snapshot containing a logical volume unknown to the current repository verifies successfully but restore refuses it with an explicit compatibility error.
 
 `SHA256SUMS` contains checksums for `manifest.json`, `RECOVERY.md`, and every archive, using paths relative to the snapshot root. It detects accidental corruption; it does not authenticate a snapshot against a malicious party.
 
 ## Offline verification
 
 `verify` requires Python only. It neither contacts Docker nor creates any Docker resource.
+
+The supplied snapshot path and every fixed snapshot entry must resolve without traversing a symlink. `manifest.json`, `SHA256SUMS`, `RECOVERY.md`, the `volumes/` directory, and each archive must be ordinary files or directories of the expected type. The verifier rejects symlinked snapshot structure before reading checksums.
 
 Verification proceeds in this order:
 
@@ -292,7 +305,7 @@ Verification proceeds in this order:
 3. parse `SHA256SUMS` with strict lowercase SHA-256 syntax and unique paths;
 4. verify every listed file checksum;
 5. parse `manifest.json` and enforce the version-1 schema in code;
-6. cross-check the manifest, checksum file, archive directory, and complete logical inventory;
+6. cross-check the manifest, checksum file, archive directory, and snapshot-declared logical inventory;
 7. inspect every tar archive without extracting it;
 8. recompute `member_count` and `uncompressed_file_bytes` from tar headers;
 9. reject unsafe or unsupported archive members.
@@ -337,12 +350,13 @@ Python's tar extraction filters are not used as the only defense. The controller
 
 1. validate `HOMELAB_PROJECT_NAME` against Compose project-name rules;
 2. verify Python version and required repository files;
-3. verify the Docker CLI and daemon;
-4. verify no project container exists;
-5. inspect all eleven expected actual volume names;
-6. reject attached, non-local, or option-bearing existing volumes;
-7. fail if no expected volume exists;
-8. verify the pinned helper image reference is explicit.
+3. verify the backup root type and permissions;
+4. verify the Docker CLI and daemon;
+5. verify no project container exists;
+6. inspect all eleven expected actual volume names;
+7. reject attached, non-local, or option-bearing existing volumes;
+8. fail if no expected volume exists;
+9. verify the pinned helper image reference is explicit.
 
 It then archives existing volumes in sorted logical-name order.
 
@@ -374,15 +388,19 @@ Only archived volumes are created or populated. Logical volumes recorded as miss
 Restore performs all of these checks before creating or writing any target volume:
 
 1. complete offline snapshot verification;
-2. target project-name validation;
-3. Docker CLI and daemon verification;
-4. rejection of every target-project container, including stopped containers;
-5. target actual-name collision checks;
-6. attachment checks against containers from any project;
-7. local-driver and empty-options checks for existing targets;
-8. emptiness checks for every existing target volume.
+2. current-inventory compatibility validation;
+3. target project-name validation;
+4. Docker CLI and daemon verification;
+5. rejection of every target-project container, including stopped containers;
+6. target actual-name collision checks;
+7. attachment checks against containers from any project;
+8. local-driver and empty-options checks for existing targets;
+9. Compose label checks for existing targets;
+10. emptiness checks for every existing target volume.
 
 An existing target is accepted only when a read-only `volume-nocopy` helper probe finds no entry below its root. A non-empty target is never cleared, merged, or overwritten.
+
+An existing target may have either no Compose ownership labels or the exact expected `com.docker.compose.project` and `com.docker.compose.volume` values. Conflicting labels are rejected. This permits intentionally pre-created empty local volumes while preventing restore into a volume visibly owned by another Compose project or logical volume.
 
 ### Volume creation
 
@@ -460,23 +478,28 @@ Create `scripts/test_backup.py` using only the standard library and fake Docker 
 Tests cover at least:
 
 - project-name precedence and validation;
-- exact eleven-volume inventory;
+- exact current eleven-volume inventory;
 - snapshot identifier validation;
 - strict manifest key and type validation;
+- old-snapshot verification after current-inventory change;
+- restore refusal for snapshot-only unknown logical volumes;
 - checksum parsing and mismatch rejection;
 - missing and unexpected archive detection;
+- symlinked snapshot structure rejection;
 - absolute tar paths;
 - parent traversal;
 - duplicate members;
 - device/FIFO rejection;
 - escaping symlink and hardlink targets;
 - acceptance of a safe relative symlink;
+- unsafe existing backup-root permission refusal;
 - all-missing backup refusal;
 - project-container refusal;
 - attached-volume refusal;
 - non-local/option-bearing volume refusal;
 - streaming archive command shape with read-only `volume-nocopy` source mounts;
 - restore preflight before volume creation;
+- conflicting Compose label refusal;
 - non-empty target refusal;
 - creation of Compose labels;
 - cleanup of only volumes created by a failed restore;
@@ -539,12 +562,15 @@ The workflow must not upload generated snapshots because volume fixtures may con
 
 Add `scripts/check_backup_policy.py` and extend existing static checks to require:
 
-- the exact eleven logical volumes;
+- the exact current eleven logical volumes;
+- self-contained snapshot-declared volume inventories;
 - the pinned `alpine:3.24.1` helper image;
 - inclusion of the helper in image-platform verification;
 - `backup`, `verify-backup`, `restore`, and `check-backup-runtime` Make targets;
 - `/backups/` in `.gitignore`;
 - offline verification without Docker calls;
+- non-symlink snapshot structure;
+- private backup-root and snapshot permissions;
 - read-only source mounts;
 - `volume-nocopy` on helper mounts;
 - project and attachment preflight checks;
