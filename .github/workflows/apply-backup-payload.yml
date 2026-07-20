@@ -49,6 +49,16 @@ jobs:
           tar -xzf /tmp/verified-backup-payload.tar.gz
           python3 tools/apply_backup_changes.py
           rm tools/apply_backup_changes.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("docs/BACKUP.md")
+          text = path.read_text(encoding="utf-8")
+          old = "Checksums detect accidental corruption. They are **not encryption**, a digital signature, or protection from a malicious party that can replace both the snapshot and its checksum file."
+          new = "SHA-256 checksums detect accidental corruption. They are **not encryption**, a digital signature, or protection from a malicious party that can replace both the snapshot and its checksum file."
+          if old not in text:
+              raise SystemExit("expected backup checksum wording was not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
           chmod 0755 \
             scripts/backup.py \
             scripts/test_backup.py \
