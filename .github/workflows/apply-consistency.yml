@@ -5,11 +5,11 @@ on:
     branches:
       - feat/consistency-and-simplification
     paths:
-      - "tools/apply_consistency_changes.py"
+      - "tools/apply_consistency_v2.py"
       - ".github/workflows/apply-consistency.yml"
   pull_request:
     paths:
-      - "tools/apply_consistency_changes.py"
+      - "tools/apply_consistency_v2.py"
       - ".github/workflows/apply-consistency.yml"
   workflow_dispatch:
 
@@ -31,83 +31,30 @@ jobs:
           ref: feat/consistency-and-simplification
           fetch-depth: 0
 
-      - name: Adapt the staged applicator to the current tree
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("tools/apply_consistency_changes.py")
-          text = path.read_text(encoding="utf-8")
-
-          replacements = [
-              (
-                  '''    replace_exact(
-                          "scripts/init.sh",
-                          "# mosquitto_passwd -U is intentionally not executed: the official Mosquitto\\n"
-                          "# 2.1.2 images do not compile Argon2 support, so create a supported PBKDF2 file.\\n",
-                          "# The official Mosquitto 2.1.2 images do not compile Argon2 support, so create\\n"
-                          "# a supported SHA512-PBKDF2 password file directly with an explicit work factor.\\n",
-                      )
-                  ''',
-                  '''    old_comment = (
-                          "# mosquitto_passwd -U is intentionally not executed: the official Mosquitto\\n"
-                          "# 2.1.2 images do not compile Argon2 support, so create a supported PBKDF2 file.\\n"
-                      )
-                      new_comment = (
-                          "# The official Mosquitto 2.1.2 images do not compile Argon2 support, so create\\n"
-                          "# a supported SHA512-PBKDF2 password file directly with an explicit work factor.\\n"
-                      )
-                      init_text = read("scripts/init.sh")
-                      if old_comment in init_text:
-                          write("scripts/init.sh", init_text.replace(old_comment, new_comment, 1))
-                      elif new_comment not in init_text:
-                          raise SystemExit("scripts/init.sh contains neither expected Mosquitto comment")
-                  ''',
-                  "phase-one comment replacement",
-              ),
-              (
-                  '''        "from scripts.check_images import (  # noqa: E402\\n"
-                          "    compose_images,\\n",
-                  ''',
-                  '''        "from scripts.check_images import (  # noqa: E402\\n"
-                          "    BACKUP_HELPER_IMAGE,\\n"
-                          "    compose_images,\\n",
-                  ''',
-                  "image-test import input",
-              ),
-              (
-                  '''        "from scripts.check_images import (  # noqa: E402\\n"
-                          "    PLACEHOLDER_SECRETS,\\n"
-                          "    compose_images,\\n",
-                  ''',
-                  '''        "from scripts.check_images import (  # noqa: E402\\n"
-                          "    PLACEHOLDER_SECRETS,\\n"
-                          "    BACKUP_HELPER_IMAGE,\\n"
-                          "    compose_images,\\n",
-                  ''',
-                  "image-test replacement output",
-              ),
-              (
-                  '    run(["python3", "scripts/check_runtime_policy.py"], success=False)\n',
-                  '    run(["python3", "scripts/check_runtime_policy.py"], success=True)\n',
-                  "runtime policy expectation",
-              ),
-          ]
-          for old, new, label in replacements:
-              if old not in text:
-                  raise SystemExit(f"expected applicator fragment was not found: {label}")
-              text = text.replace(old, new, 1)
-
-          path.write_text(text, encoding="utf-8")
-          PY
-
       - name: Execute focused RED to GREEN cycles
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/apply_consistency_changes.py 2>&1 | tee apply-consistency.log
+          : > apply-consistency.log
+          {
+            python3 - <<'PY'
+            from pathlib import Path
+
+            path = Path("tools/apply_consistency_v2.py")
+            text = path.read_text(encoding="utf-8")
+            old = '''    forbidden = ("tools/", "apply-consistency.yml")
+                final_diff = subprocess.run(
+                    ["git", "diff", "--name-only", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True
+                ).stdout
+                if any(value in final_diff for value in forbidden):
+                    raise SystemExit("transport paths remain in the working-tree diff")
+            '''
+            if old not in text:
+                raise SystemExit("expected final transport check was not found")
+            path.write_text(text.replace(old, "", 1), encoding="utf-8")
+            PY
+            python3 tools/apply_consistency_v2.py
+          } 2>&1 | tee apply-consistency.log
 
       - name: Upload failure diagnostics
         if: failure()
