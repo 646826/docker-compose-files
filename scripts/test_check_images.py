@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.check_images import (  # noqa: E402
+    BACKUP_HELPER_IMAGE,
     compose_images,
     helper_images,
     manifest_platforms,
@@ -37,6 +38,9 @@ class ComposeImagesTests(unittest.TestCase):
 
 
 class HelperImagesTests(unittest.TestCase):
+    def test_backup_helper_is_pinned(self) -> None:
+        self.assertEqual(BACKUP_HELPER_IMAGE, "alpine:3.24.1")
+
     def test_extracts_exact_bootstrap_helper_assignments(self) -> None:
         script = """
 ROOT=/tmp/example

@@ -29,6 +29,7 @@ PROFILES = (
     "test",
 )
 HELPER_KEYS = ("HTPASSWD_IMAGE", "MOSQUITTO_IMAGE")
+BACKUP_HELPER_IMAGE = "alpine:3.24.1"
 REQUIRED_PLATFORMS = {"linux/amd64", "linux/arm64"}
 PLACEHOLDER_SECRETS = {
     "influxdb_username": "manifest-check",
@@ -216,6 +217,7 @@ def configured_images() -> set[str]:
 
     images = compose_images(rendered)
     images.update(helper_images(INIT_SCRIPT.read_text(encoding="utf-8")))
+    images.add(BACKUP_HELPER_IMAGE)
     return images
 
 
