@@ -125,6 +125,7 @@ def main() -> int:
         "SECURITY.md",
         "docs/MIGRATION.md",
         "docs/K3S.md",
+        "docs/BACKUP.md",
         "config/telegraf/telegraf.conf",
         "config/mosquitto/mosquitto.conf",
         "config/grafana/provisioning/datasources/influxdb.yaml",
@@ -135,11 +136,16 @@ def main() -> int:
         "scripts/check.sh",
         "scripts/check_images.py",
         "scripts/check_runtime.sh",
+        "scripts/backup.py",
+        "scripts/check_backup_policy.py",
+        "scripts/check_backup_runtime.sh",
+        "scripts/test_backup.py",
         "scripts/test_init.py",
         "scripts/test_check_images.py",
         "scripts/test_runtime.py",
         ".github/workflows/ci.yml",
         ".github/workflows/images.yml",
+        ".github/workflows/backup-runtime.yml",
         "renovate.json",
     )
     for path in required_files:
@@ -302,6 +308,10 @@ def main() -> int:
             "init",
             "check",
             "check-images",
+            "backup",
+            "verify-backup",
+            "restore",
+            "check-backup-runtime",
             "core",
             "up",
             "full",
@@ -348,6 +358,10 @@ def main() -> int:
             error("scripts/check.sh must run image verification unit tests")
         if "python3 scripts/test_runtime.py" not in check_script:
             error("scripts/check.sh must run runtime harness behavior tests")
+        if "python3 scripts/test_backup.py" not in check_script:
+            error("scripts/check.sh must run backup behavior tests")
+        if "python3 scripts/check_backup_policy.py" not in check_script:
+            error("scripts/check.sh must run backup policy checks")
 
     image_checker = read_required("scripts/check_images.py")
     if image_checker:
@@ -406,6 +420,8 @@ def main() -> int:
             error("README must document registry-backed image verification")
         if "linux/amd64" not in readme or "linux/arm64" not in readme:
             error("README must name both maintained image platforms")
+        if "docs/BACKUP.md" not in readme or "make backup" not in readme:
+            error("README must document the verified backup workflow")
 
     k3s_doc = read_required("docs/K3S.md")
     if k3s_doc:

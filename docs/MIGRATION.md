@@ -4,6 +4,8 @@ The refreshed stack intentionally does not import or delete old data automatical
 
 ## 1. Back up first
 
+For an already migrated installation that uses the current named volumes, use the verified cold backup and side-by-side restore procedure in [`docs/BACKUP.md`](BACKUP.md). The commands below remain specific to the legacy `docker-data/v1` bind-mounted layout.
+
 Stop the old containers without deleting the bind-mounted directories:
 
 ```bash

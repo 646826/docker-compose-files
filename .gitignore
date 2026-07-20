@@ -6,7 +6,7 @@
 
 # Runtime data from legacy and local deployments
 docker-data/
-backups/
+/backups/
 
 # Editor and operating-system files
 .vscode/

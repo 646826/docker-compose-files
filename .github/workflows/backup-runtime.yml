@@ -1,0 +1,63 @@
+name: Backup runtime
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/backup.py"
+      - "scripts/check_backup_runtime.sh"
+      - "scripts/check_backup_policy.py"
+      - "scripts/test_backup.py"
+      - "docs/BACKUP.md"
+      - "Makefile"
+      - ".github/workflows/backup-runtime.yml"
+  pull_request:
+    paths:
+      - "scripts/backup.py"
+      - "scripts/check_backup_runtime.sh"
+      - "scripts/check_backup_policy.py"
+      - "scripts/test_backup.py"
+      - "docs/BACKUP.md"
+      - "Makefile"
+      - ".github/workflows/backup-runtime.yml"
+  schedule:
+    - cron: "11 6 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-runtime-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  roundtrip:
+    name: Verify volume backup and restore
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Verify Docker and Compose
+        run: |
+          docker version
+          docker compose version
+
+      - name: Run backup round trip
+        shell: bash
+        run: |
+          set -o pipefail
+          make check-backup-runtime 2>&1 | tee backup-runtime.log
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-runtime-log
+          path: backup-runtime.log
+          if-no-files-found: error
+          retention-days: 3

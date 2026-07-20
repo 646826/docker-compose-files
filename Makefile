@@ -1,11 +1,12 @@
 SHELL := /bin/sh
 COMPOSE ?= docker compose
+BACKUP_ROOT ?= backups
 DEFAULT_PROFILES := --profile monitoring --profile tools
 ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile netdata --profile test
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init check check-images check-runtime check-iot-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
+.PHONY: help init check check-images check-runtime check-iot-runtime backup verify-backup restore check-backup-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -24,6 +25,20 @@ check-runtime: ## Pull missing layers, start the isolated default stack, and run
 
 check-iot-runtime: ## Start the isolated IoT stack and verify MQTT auth/persistence plus openHAB readiness
 	@sh ./scripts/check_iot_runtime.sh
+
+backup: ## Create a verified cold snapshot of all existing project volumes
+	@BACKUP_ROOT="$(BACKUP_ROOT)" python3 scripts/backup.py create
+
+verify-backup: ## Verify BACKUP offline without touching Docker
+	@test -n "$(BACKUP)" || { echo "BACKUP is required" >&2; exit 2; }
+	@python3 scripts/backup.py verify "$(BACKUP)"
+
+restore: ## Restore BACKUP into absent or empty volumes for the current project
+	@test -n "$(BACKUP)" || { echo "BACKUP is required" >&2; exit 2; }
+	@python3 scripts/backup.py restore "$(BACKUP)"
+
+check-backup-runtime: ## Exercise a disposable backup/verify/restore round trip
+	@sh ./scripts/check_backup_runtime.sh
 
 config: init ## Print the fully rendered Compose model for every profile
 	@$(COMPOSE) --env-file .env $(ALL_PROFILES) config

@@ -17,6 +17,7 @@
 - отдельная проверка существования image tags и manifests для `amd64`/`arm64`;
 - изолированный runtime smoke test для фактического запуска default stack;
 - отдельный IoT runtime smoke test для MQTT authentication/persistence и готовности openHAB;
+- проверяемые cold backup/restore named volumes с manifest, checksums и реальным CI round trip;
 - k3s отделён от Compose, чтобы базовый стек не превращался в сложную платформу.
 
 ## Требования
@@ -81,6 +82,10 @@ make up
 | `make check-images` | проверить registry tags и manifests для `amd64`/`arm64` |
 | `make check-runtime` | поднять изолированный default stack и проверить маршруты, auth, provisioning и метрики |
 | `make check-iot-runtime` | поднять изолированный IoT stack и проверить MQTT auth/persistence и готовность openHAB |
+| `make backup` | создать атомарный проверенный cold snapshot существующих named volumes |
+| `make verify-backup BACKUP=...` | офлайн проверить manifest, checksums и tar safety |
+| `make restore BACKUP=...` | восстановить snapshot в отсутствующие или пустые volumes текущего project name |
+| `make check-backup-runtime` | выполнить одноразовый backup/verify/restore round trip |
 | `make down` | остановить проект, сохранив volumes |
 
 ## Учётные данные
@@ -152,18 +157,9 @@ Renovate предлагает обновления отдельными pull req
 
 Состояние хранится в именованных volumes с префиксом из `HOMELAB_PROJECT_NAME`; default остаётся `homelab_`. `make down` их не удаляет.
 
-Пример архивирования Grafana:
+Перед обновлением stateful-сервисов выполните `make down`, затем `make backup`. Snapshot атомарно публикуется только после проверки manifest, SHA-256 checksums и безопасной структуры каждого tar-архива. Офлайн-проверка выполняется через `make verify-backup BACKUP=backups/<snapshot-id>`, а восстановление рекомендуется делать рядом с оригиналом через отдельный `HOMELAB_PROJECT_NAME`.
 
-```bash
-mkdir -p backups
-docker run --rm \
-  -v homelab_grafana_data:/data:ro \
-  -v "$PWD/backups:/backup" \
-  alpine:3.22 \
-  tar -czf /backup/grafana-data.tgz -C /data .
-```
-
-Перед обновлением баз данных и Portainer делайте резервную копию соответствующих volumes. Переход со старой структуры описан в [`docs/MIGRATION.md`](docs/MIGRATION.md).
+Полная процедура, модель конфиденциальности и rollback описаны в [`docs/BACKUP.md`](docs/BACKUP.md). Переход со старой bind-mount структуры описан в [`docs/MIGRATION.md`](docs/MIGRATION.md).
 
 ## Важные ограничения
 
