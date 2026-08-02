@@ -3,10 +3,13 @@
 .env.*
 !.env.example
 .secrets/
+/local/
 
 # Runtime data from legacy and local deployments
 docker-data/
 /backups/
+/security-reports/
+/sbom/
 
 # Editor and operating-system files
 .vscode/
