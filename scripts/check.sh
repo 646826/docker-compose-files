@@ -27,6 +27,8 @@ python3 scripts/check_remote_backup_policy.py
 python3 scripts/check_optional_runtime_policy_modular.py
 python3 scripts/check_modules.py
 python3 scripts/check_community_services.py
+python3 scripts/check_tls_examples.py
+python3 scripts/check_security_policy.py
 python3 scripts/test_community_runtime.py
 python3 scripts/test_init.py
 python3 scripts/test_init_community.py
@@ -39,6 +41,7 @@ python3 scripts/test_iot_runtime_modular.py
 python3 scripts/test_backup.py
 python3 scripts/test_backup_community.py
 python3 scripts/test_remote_backup.py
+python3 scripts/test_security.py
 python3 scripts/test_english_only.py
 python3 scripts/check_english_only.py
 # Compatibility owner: python3 scripts/test_optional_runtime.py
