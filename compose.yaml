@@ -68,3 +68,9 @@ secrets:
     file: ./.secrets/traefik_users
   mosquitto_passwords:
     file: ./.secrets/mosquitto_passwords
+  authelia_jwt_secret:
+    file: ./.secrets/authelia_jwt_secret
+  authelia_session_secret:
+    file: ./.secrets/authelia_session_secret
+  authelia_storage_encryption_key:
+    file: ./.secrets/authelia_storage_encryption_key
