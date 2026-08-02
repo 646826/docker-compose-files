@@ -55,7 +55,7 @@ def main() -> int:
         uptime,
         "Uptime Kuma module",
         (
-            "image: louislam/uptime-kuma:2.4.0",
+            "image: louislam/uptime-kuma:2.4.0-slim",
             "profiles: [uptime]",
             "uptime_kuma_data:/app/data",
             "middlewares: ${AUTH_MIDDLEWARE:-local-auth@docker}",
