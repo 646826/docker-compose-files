@@ -8,6 +8,7 @@
 # Runtime data from legacy and local deployments
 docker-data/
 /backups/
+/.cache/
 /security-reports/
 /sbom/
 
