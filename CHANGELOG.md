@@ -26,6 +26,7 @@ The project uses semantic versioning for tagged community-platform releases. Con
 - The previous monolithic Compose service definition is now split into `modules/` while preserving the default `make up` service scope, established network names, established volume names, and existing operator commands.
 - The Uptime Kuma default uses the pinned `2.4.0-slim` image, retaining SQLite and ordinary monitor types while excluding embedded MariaDB and Chromium from the default attack surface.
 - Telegraf is updated to the current official `1.39.2-alpine` image.
+- Traefik is updated to the current stable `v3.7.10` release.
 - Verified local backups now include persistent Uptime Kuma, AdGuard Home, and Authelia data.
 - `make full` remains limited to the established persistent stack and intentionally excludes DNS and community web applications.
 - Image-platform verification now covers community services, restic, and the pinned Trivy scanner on both `linux/amd64` and `linux/arm64`.

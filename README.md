@@ -218,7 +218,7 @@ Keep certificate material under ignored `local/` paths or another operator-contr
 | Bootstrap helper Apache httpd | `2.4.68` |
 | Backup helper Alpine | `3.24.1` |
 | Docker socket proxy | `0.4.2` |
-| Traefik | `3.7.8` |
+| Traefik | `3.7.10` |
 | whoami | `1.11.0` |
 | InfluxDB | `2.9.1` |
 | Telegraf | `1.39.2` |
