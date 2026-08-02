@@ -27,11 +27,17 @@ def main() -> int:
     workflow = read_required(".github/workflows/security.yml")
     makefile = read_required("Makefile")
     check = read_required("scripts/check.sh")
+    image_checker = read_required("scripts/check_images_community.py")
+    renovate = read_required("renovate.json")
+    gitignore = read_required(".gitignore")
     exceptions_path = ROOT / "security" / "exceptions.json"
 
     if implementation:
         for fragment in (
             'TRIVY_IMAGE = "ghcr.io/aquasecurity/trivy:0.70.0"',
+            'CACHE_ROOT = ROOT / ".cache" / "trivy"',
+            '"--user"',
+            '"--cache-dir"',
             '"--format", "cyclonedx"',
             '"--ignore-unfixed"',
             '"CRITICAL"',
@@ -50,6 +56,8 @@ def main() -> int:
             "test_expired_duplicate_or_incomplete_exceptions_fail",
             "test_only_fixable_critical_vulnerabilities_are_returned",
             "test_command_uses_pinned_container_and_report_mount",
+            "test_command_runs_as_calling_user_with_user_owned_cache",
+            "test_trivy_helper_is_in_multiarch_image_inventory",
         ):
             if test not in tests:
                 ERRORS.append(f"security regression test is missing: {test}")
@@ -75,6 +83,21 @@ def main() -> int:
         ):
             if command not in check:
                 ERRORS.append(f"fast checks must run: {command}")
+
+    if image_checker:
+        for fragment in (
+            'TRIVY_IMAGE = "ghcr.io/aquasecurity/trivy:0.70.0"',
+            "images.add(TRIVY_IMAGE)",
+        ):
+            if fragment not in image_checker:
+                ERRORS.append(f"image-platform coverage is missing: {fragment}")
+
+    if renovate and "TRIVY_IMAGE" not in renovate:
+        ERRORS.append("Renovate must discover the pinned Trivy helper image")
+
+    for path in ("/.cache/", "/security-reports/", "/sbom/"):
+        if path not in gitignore:
+            ERRORS.append(f".gitignore must exclude generated security data: {path}")
 
     if workflow:
         for fragment in (
