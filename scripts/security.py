@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -17,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TRIVY_IMAGE = "ghcr.io/aquasecurity/trivy:0.70.0"
 REPORT_ROOT = ROOT / "security-reports"
 SBOM_ROOT = ROOT / "sbom"
+CACHE_ROOT = ROOT / ".cache" / "trivy"
 EXCEPTIONS_FILE = ROOT / "security" / "exceptions.json"
 IMAGE_RE = re.compile(r"(?m)^\s{4}image:\s*['\"]?([^'\"#\s]+)")
 ASSIGNMENT_RE = re.compile(
@@ -67,6 +69,13 @@ def discover_images(root: Path = ROOT) -> set[str]:
     return images
 
 
+def _calling_user() -> str:
+    try:
+        return f"{os.getuid()}:{os.getgid()}"
+    except AttributeError as exc:  # pragma: no cover - Linux-only project guard
+        raise SecurityPolicyError("container security scans require a POSIX host") from exc
+
+
 def build_trivy_command(action: str, *, image: str, output: Path) -> list[str]:
     """Build a direct pinned-container Trivy invocation."""
     if action not in {"scan", "sbom"}:
@@ -76,12 +85,16 @@ def build_trivy_command(action: str, *, image: str, output: Path) -> list[str]:
         "docker",
         "run",
         "--rm",
+        "--user",
+        _calling_user(),
         "--volume",
-        "docker-compose-files_trivy_cache:/root/.cache/trivy",
+        f"{CACHE_ROOT.resolve()}:/cache",
         "--volume",
         f"{output.parent}:/reports",
         TRIVY_IMAGE,
         "image",
+        "--cache-dir",
+        "/cache",
         "--quiet",
         "--output",
         f"/reports/{output.name}",
@@ -204,6 +217,9 @@ def run(command: Sequence[str]) -> None:
 
 def generate(action: str, images: Iterable[str], output_root: Path) -> list[Path]:
     output_root.mkdir(parents=True, exist_ok=True)
+    CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+    output_root.chmod(0o700)
+    CACHE_ROOT.chmod(0o700)
     outputs: list[Path] = []
     suffix = ".vulnerabilities.json" if action == "scan" else ".cdx.json"
     for image in sorted(images):
