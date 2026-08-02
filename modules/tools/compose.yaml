@@ -1,0 +1,21 @@
+x-module-owner: tools
+
+services:
+  portainer:
+    image: portainer/portainer-ce:2.39.5-alpine
+    profiles: [tools]
+    restart: unless-stopped
+    command: --http-enabled
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.portainer.rule: Host(`portainer.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.portainer.entrypoints: web
+      traefik.http.services.portainer.loadbalancer.server.port: "9000"
