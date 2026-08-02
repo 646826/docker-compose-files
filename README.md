@@ -1,143 +1,215 @@
 # Docker Compose Homelab
 
-A simple, reproducible, and secure homelab stack for Linux `amd64` and `arm64`.
+A modular, reproducible, and security-focused homelab platform for Linux `amd64` and `arm64`.
 
-The repository preserves all previous capabilities—Traefik, InfluxDB, Telegraf, Grafana, and Portainer—and completes the explicitly planned integrations: Netdata, Eclipse Mosquitto, openHAB, k6, and separate k3s guidance.
+The root Compose application preserves the established Traefik, InfluxDB, Telegraf, Grafana, Portainer, Netdata, Mosquitto, openHAB, and k6 stack. Optional modules add Uptime Kuma, Homepage, guarded AdGuard Home, Authelia, and read-only Dozzle. The repository also provides verified local backups, encrypted restic transport, host diagnostics, image-platform checks, real runtime tests, CycloneDX SBOMs, and pinned Trivy policy enforcement.
 
-## What changed
+Current project release: [`VERSION`](VERSION). Release history: [`CHANGELOG.md`](CHANGELOG.md). Complete module inventory: [`docs/MODULES.md`](docs/MODULES.md).
 
-- one root `compose.yaml` instead of a collection of independent files;
-- Docker Compose profiles for optional service groups;
-- pinned image versions instead of `latest`;
-- locally generated Compose secrets instead of passwords committed to Git;
-- the Traefik dashboard and whoami without an insecure port and protected by shared Basic Auth;
-- Traefik and Telegraf access to the Docker API through a restricted socket proxy;
-- named volumes that are not removed by `make down`;
-- health checks, CI validation, Renovate, and compact maintainable configuration;
-- a permanent English-only gate for tracked UTF-8 repository files;
-- a separate check for image tag existence and `amd64`/`arm64` manifests;
-- an isolated runtime smoke test that launches the actual default stack;
-- a separate IoT runtime smoke test for MQTT authentication and persistence, plus openHAB readiness;
-- an isolated optional-profile runtime test for Netdata host metrics and the committed k6 smoke script;
-- verifiable cold backup and restore for named volumes, with a manifest, checksums, and a real CI round trip;
-- k3s kept separate from Compose so the basic stack does not become a complex platform.
+## Design principles
+
+- one root `compose.yaml` assembled from independently owned files under `modules/`;
+- Docker Compose profiles for every non-core service group;
+- no `latest` or implicit image tags;
+- maintained image support for both `linux/amd64` and `linux/arm64`;
+- locally generated, file-backed credentials under ignored `.secrets/`;
+- unchanged default `make up` scope: core + monitoring + Portainer;
+- no implicit DNS activation through `make full` or `make community`;
+- named volumes preserved by `make down` and covered by verified backup/restore;
+- read-only host diagnosis through `make doctor`;
+- isolated application-level runtime tests with unique projects and scoped cleanup;
+- registry manifest verification, Renovate updates, Trivy scans, and CycloneDX SBOMs;
+- LAN and public TLS documented as deployment-specific overrides rather than unsafe defaults.
 
 ## Requirements
 
-- Linux with Docker Engine and a current Compose plugin (`docker compose`, not legacy `docker-compose`);
-- `make`, a POSIX shell, and Python 3.11+;
-- OpenSSL and `curl`;
-- a user account with access to the Docker daemon.
+- Linux Docker Engine with the current `docker compose` plugin;
+- Docker Compose **2.20.3 or newer**, required for the top-level `include` element;
+- Python 3.11+, `make`, a POSIX shell, OpenSSL, and `curl`;
+- Docker Buildx for multi-platform manifest verification;
+- a user account allowed to access the Docker daemon.
+
+Run the non-mutating diagnostic before deployment:
+
+```bash
+make doctor
+```
+
+It checks Docker availability, Compose version, host architecture, memory, disk space, listener conflicts, `.env`, local secret permissions, resource names, and common DNS conflicts. It reports corrective guidance but does not change the host.
 
 ## Quick start
 
 ```bash
 git clone https://github.com/646826/docker-compose-files.git
 cd docker-compose-files
+make doctor
 make init
 make up
 ```
 
-`make init`:
+`make init` creates `.env` only when missing and creates only missing established credentials. Existing values are not silently replaced or rotated. Traefik receives a cost-12 bcrypt record. Mosquitto receives a SHA512-PBKDF2 record with exactly 220000 iterations; plaintext is supplied through standard input rather than process arguments.
 
-1. creates `.env` from `.env.example` when the file does not exist;
-2. creates only missing files under `.secrets/`;
-3. does not replace existing settings or passwords;
-4. generates a cost-12 bcrypt record for Traefik and a SHA512-PBKDF2 password record with 220000 iterations for Mosquitto through pinned official images; plaintext is not passed as a process argument;
-5. writes generated raw secrets without a trailing newline so file-backed tokens can be used safely in HTTP headers.
+`make up` starts the compatibility scope:
 
-`make up` starts the equivalent of the previous stack: core + monitoring + Portainer.
+```text
+core + monitoring + Portainer
+```
 
-## Default endpoints
+Community applications remain opt-in.
 
-| Service | Address | Started by |
+## Module layout
+
+```text
+compose.yaml
+modules/
+├── core/          # socket proxy, Traefik, whoami
+├── monitoring/    # InfluxDB, Telegraf, Grafana, Netdata, k6
+├── tools/         # Portainer
+├── iot/           # Mosquitto and openHAB
+├── uptime/        # Uptime Kuma
+├── dns/           # guarded AdGuard Home
+├── dashboard/     # static Homepage
+├── auth/          # Authelia and ForwardAuth middleware
+└── logs/          # Dozzle through the restricted socket proxy
+```
+
+Shared networks, named volumes, and Compose secret declarations stay in the root file. Service ownership, profiles, privileges, storage, commands, and runtime coverage are documented in [`docs/MODULES.md`](docs/MODULES.md).
+
+## Endpoints
+
+With `BASE_DOMAIN=localhost` and default ports:
+
+| Service | Address | Activation |
 | --- | --- | --- |
-| Traefik dashboard | `http://traefik.localhost/dashboard/` | always |
-| whoami | `http://whoami.localhost` | always |
+| Traefik dashboard | `http://traefik.localhost/dashboard/` | core |
+| whoami | `http://whoami.localhost` | core |
 | InfluxDB | `http://influxdb.localhost` | `make up` / `make monitoring` |
 | Grafana | `http://grafana.localhost` | `make up` / `make monitoring` |
 | Portainer | `http://portainer.localhost` | `make up` / `make tools` |
-| Netdata | `http://localhost:${NETDATA_PORT}` (`19999` by default) | `make full` / `make netdata` |
+| Netdata | `http://localhost:${NETDATA_PORT}`; default `19999` | `make full` / `make netdata` |
 | openHAB | `http://openhab.localhost` | `make full` / `make iot` |
 | Mosquitto | `mqtt://localhost:1883` | `make full` / `make iot` |
+| Uptime Kuma | `http://uptime.localhost` | `make uptime` / `make community` |
+| Homepage | `http://home.localhost` | `make dashboard` / `make community` |
+| Dozzle | `http://logs.localhost` | `make dozzle` / `make community` |
+| Authelia | `http://auth.localhost` | `make auth` or selected by `make community` |
+| AdGuard Home UI | `http://dns.localhost` | explicit `make dns` |
+| AdGuard DNS | TCP/UDP `${DNS_HOST_IP}:${DNS_PORT}`; default port `53` | explicit `make dns` |
 
-The domain, bind addresses, HTTP port, MQTT port, Netdata port, and time zone are configured in `.env`. `HTTP_HOST_IP` and `MQTT_HOST_IP` default to `0.0.0.0`; set them to `127.0.0.1` to publish the corresponding port only on the local host. `NETDATA_PORT` defaults to `19999`; Netdata uses host networking, so choose another free port when that listener is already occupied. `HOMELAB_PROJECT_NAME` sets the common prefix for the project, networks, and volumes; the default `homelab` preserves the previous names. For access from another computer, configure local DNS or hosts-file entries for the selected `BASE_DOMAIN`.
+`HTTP_HOST_IP` and `MQTT_HOST_IP` default to `0.0.0.0`; set them to `127.0.0.1` for host-local publication. `NETDATA_PORT` defaults to `19999`. AdGuard's initial setup listener defaults to loopback. Before changing router or client DNS, follow [`docs/ADGUARD.md`](docs/ADGUARD.md).
 
-## Commands
+## Main commands
 
 | Command | Purpose |
 | --- | --- |
-| `make help` | show available commands |
-| `make init` | create local configuration and missing secrets |
-| `make core` | start Traefik, the socket proxy, and whoami |
+| `make help` | show all operator commands |
+| `make doctor` | diagnose the host and local configuration without mutation |
+| `make init` | create established configuration and missing credentials |
+| `make core` | start the core reverse-proxy services |
 | `make up` | start core + monitoring + Portainer |
-| `make full` | start all persistent services, including Netdata, Mosquitto, and openHAB |
-| `make monitoring` | start core + InfluxDB + Telegraf + Grafana |
-| `make netdata` | start only Netdata for host monitoring |
-| `make tools` | start core + Portainer |
-| `make iot` | start core + Mosquitto + openHAB |
-| `make k6` | run a bounded 10-second smoke test |
-| `make pull` | pull the selected versions of all images |
-| `make ps` | show containers from all profiles |
-| `make logs` | follow logs |
-| `make check` | run local static, behavior, shell, and Compose checks |
-| `make check-images` | verify registry tags and manifests for `amd64`/`arm64` |
-| `make check-runtime` | start an isolated default stack and verify routes, authentication, provisioning, and metrics |
-| `make check-iot-runtime` | start an isolated IoT stack and verify MQTT authentication, persistence, and openHAB readiness |
-| `make check-optional-runtime` | start isolated Netdata and k6 checks without using deployment configuration |
-| `make backup` | create an atomic, verified cold snapshot of existing named volumes |
-| `make verify-backup BACKUP=...` | verify the manifest, checksums, and tar safety offline |
-| `make restore BACKUP=...` | restore a snapshot into missing or empty volumes for the current project name |
-| `make check-backup-runtime` | run a disposable backup, verification, and restore round trip |
-| `make down` | stop the project while preserving volumes |
+| `make full` | start all established persistent services; excludes DNS and community web modules |
+| `make monitoring` | start InfluxDB, Telegraf, and Grafana |
+| `make netdata` | start opt-in full host monitoring |
+| `make tools` | start Portainer |
+| `make iot` | start Mosquitto and openHAB |
+| `make uptime` | start Uptime Kuma |
+| `make dashboard` | start Homepage without Docker API access |
+| `make dozzle` | start protected read-only container logs |
+| `make community` | start Uptime Kuma, Homepage, and Dozzle; includes Authelia only when selected |
+| `make dns-preflight` | check TCP/UDP DNS listeners without modifying the host |
+| `make dns` | run preflight and explicitly start AdGuard Home |
+| `make auth-init` | create or refresh missing local Authelia files without rotation |
+| `make auth-check` | validate generated Authelia configuration with the pinned image |
+| `make auth` | validate and start Authelia |
+| `make k6` | run the bounded committed smoke test |
+| `make pull` | pull every explicitly selected image version |
+| `make ps` | show containers from every profile |
+| `make logs` | follow logs from every profile |
+| `make down` | stop all known profiles while preserving named volumes |
+
+## Authentication
+
+Community HTTP applications use the existing Traefik Basic Auth middleware by default:
+
+```dotenv
+AUTH_MIDDLEWARE=local-auth@docker
+```
+
+This is the safest immediate migration path. Homepage receives no Docker socket or API endpoint. Dozzle talks only to `docker-socket-proxy`; its actions and shell features are disabled.
+
+To enable Authelia:
+
+```bash
+make auth-init
+make auth-check
+# Change .env:
+# AUTH_MIDDLEWARE=authelia@docker
+make community
+```
+
+Configuration, enrollment, recovery, and rollback are documented in [`docs/AUTHELIA.md`](docs/AUTHELIA.md). To roll back, restore `AUTH_MIDDLEWARE=local-auth@docker`, restart the affected profiles, verify access, and then stop Authelia.
 
 ## Credentials
 
-No production passwords or tokens are stored in Git. Local values are kept under `.secrets/`:
+No production credential belongs in Git. Local values are stored under `.secrets/`, whose directory mode is `0700`.
 
-| Service | User | Password or token |
-| --- | --- | --- |
-| Traefik and whoami | `TRAEFIK_USERNAME` from `.env` | `.secrets/traefik_password` |
-| Grafana | `GRAFANA_ADMIN_USER` from `.env` | `.secrets/grafana_admin_password` |
-| InfluxDB | `.secrets/influxdb_username` | `.secrets/influxdb_password`, `.secrets/influxdb_token` |
-| Mosquitto | `MOSQUITTO_USERNAME` from `.env` | `.secrets/mosquitto_password` |
-| Portainer | set in the first-run wizard | stored in the Portainer volume |
+| Consumer | Local files |
+| --- | --- |
+| Traefik and protected routes | `traefik_password`, `traefik_users` |
+| InfluxDB | `influxdb_username`, `influxdb_password`, `influxdb_token` |
+| Grafana | `grafana_admin_password` |
+| Mosquitto | `mosquitto_password`, `mosquitto_passwords` |
+| Authelia | `authelia_password`, `authelia_users.yml`, `authelia_configuration.yml`, JWT/session/storage secret files |
+| Remote backup | `restic_repository`, `restic_password`, optional `restic_environment` |
 
-The `.secrets/` directory has mode `0700`. Plaintext files needed only by the operator have mode `0600`. Sources for file-backed Compose secrets have mode `0644` because Compose bind-mounts them without UID/GID remapping; the private parent directory still prevents other host users from accessing the files. Each container receives only the secrets explicitly assigned to it.
+Operator-only plaintext files use mode `0600`. Some Compose secret source files use mode `0644` inside the private directory because ordinary Compose bind mounts do not remap ownership; each container receives only explicitly assigned secrets.
 
-Raw password and token files are created without trailing CR/LF bytes. This matters for `.secrets/influxdb_token`: the Telegraf Docker secret store reads the file bytes directly, so a newline would become part of the HTTP `Authorization` header. On the next `make init`, an old token created by a previous script version is normalized by removing only a trailing LF or CRLF; the token value itself is not rotated.
+Never place `.env`, `.secrets/`, TLS private keys, ACME state, or restic credentials in issues, logs, screenshots, or unencrypted archives.
 
-For Mosquitto, `.secrets/mosquitto_passwords` contains only a SHA512-PBKDF2 hash with 220000 iterations. At container startup, it is copied from the read-only Compose secret into a private `tmpfs`, assigned UID/GID `1883` and mode `0600`; the original plaintext remains only in `.secrets/mosquitto_password`.
+## Local and remote backups
 
-The MQTT listener requires a password, but the default port `1883` does not use TLS. Keep it on a trusted local network. For transport across an untrusted network, add a deployment-specific TLS listener on `8883` and do not expose the plaintext listener externally.
+Stateful services use project-prefixed named volumes. `make down` preserves them.
 
-Example of reading a local password:
+Create and verify a cold local snapshot:
 
 ```bash
-cat .secrets/grafana_admin_password
+make down
+make backup
+make verify-backup BACKUP=backups/<snapshot-id>
 ```
 
-After the first `make init`, do not change `INFLUXDB_USERNAME`, `TRAEFIK_USERNAME`, or `MOSQUITTO_USERNAME` independently of the credentials already created. The script rejects this mismatch instead of silently creating a broken pair. For a completely new deployment, remove only the corresponding local secret files and run `make init` again. For a running or migrated service, rotate the account through the application first.
+Restore side by side under another project name whenever possible:
 
-Do not add `.env` or `.secrets/` to Git, backups, or logs without encryption.
+```bash
+HOMELAB_PROJECT_NAME=homelab-recovery \
+  make restore BACKUP=backups/<snapshot-id>
+```
 
-## Profiles and architecture
+The snapshot format includes a canonical manifest, SHA-256 checksums, strict tar-member validation, image inventory, and atomic publication. See [`docs/BACKUP.md`](docs/BACKUP.md).
 
-- **Core, without a profile:** `docker-socket-proxy`, Traefik, whoami.
-- **`monitoring`:** InfluxDB, Telegraf, Grafana.
-- **`netdata`:** Netdata with access to Linux host data.
-- **`tools`:** Portainer.
-- **`iot`:** Mosquitto 2.1 with password-file and SQLite plugins, plus openHAB.
-- **`test`:** disposable k6.
+For encrypted off-host storage through SFTP, S3-compatible storage, or another restic backend:
 
-Networks are separated by purpose. With the default `HOMELAB_PROJECT_NAME=homelab`, their names remain unchanged:
+```bash
+make remote-init
+make remote-backup BACKUP=backups/<snapshot-id>
+make remote-snapshots
+make verify-remote-backup
+make remote-retention
+```
 
-- `homelab_proxy` — HTTP applications behind Traefik;
-- `homelab_backend` — private metrics backend;
-- `homelab_socket` — private access to the Docker API proxy;
-- `homelab_iot` — Mosquitto and openHAB.
+Remote transport always verifies the local snapshot before upload and reads repository/password values from files. See [`docs/REMOTE_BACKUP.md`](docs/REMOTE_BACKUP.md).
 
-## Pinned versions
+## TLS
+
+The default remains local HTTP. No public domain, certificate, key, DNS-provider credential, or ACME resolver is enabled automatically.
+
+- Trusted LAN certificate deployment: [`docs/TLS-LAN.md`](docs/TLS-LAN.md)
+- Public DNS-01 deployment: [`docs/TLS-PUBLIC.md`](docs/TLS-PUBLIC.md)
+- Opt-in override: `examples/tls/compose.tls.yaml`
+
+Certificate material must live under ignored `local/` paths or another operator-controlled location outside the repository.
+
+## Image versions
 
 | Component | Image version |
 | --- | --- |
@@ -154,40 +226,27 @@ Networks are separated by purpose. With the default `HOMELAB_PROJECT_NAME=homela
 | Eclipse Mosquitto | `2.1.2` |
 | openHAB | `5.2.0` |
 | k6 | `2.1.0` |
+| Uptime Kuma | `2.3.2` |
+| AdGuard Home | `0.107.76` |
+| Homepage | `1.13.1` |
+| Authelia | `4.39.20` |
+| Dozzle | `10.6.2` |
+| restic helper | `0.18.1` |
+| Trivy helper | `0.70.0` |
 
-Renovate proposes updates in separate pull requests; updates are not applied automatically.
+Renovate proposes reviewable updates. Runtime containers are never updated automatically outside Git and CI.
 
-## Data and backups
+## Security scans and SBOMs
 
-State is stored in named volumes with a prefix derived from `HOMELAB_PROJECT_NAME`; the default remains `homelab_`. `make down` does not remove them.
+The repository invokes the pinned Trivy container directly. It does not depend on mutable Trivy setup actions.
 
-Before updating stateful services, run `make down` and then `make backup`. A snapshot is published atomically only after its manifest, SHA-256 checksums, and the safe structure of every tar archive have been verified. Run offline verification with `make verify-backup BACKUP=backups/<snapshot-id>`. For recovery, restoring side by side under a separate `HOMELAB_PROJECT_NAME` is recommended.
+```bash
+make scan-images     # JSON HIGH/CRITICAL vulnerability reports
+make sbom            # one CycloneDX JSON document per maintained image
+make check-security  # fail on fixable CRITICAL findings without an active exact exception
+```
 
-The complete procedure, confidentiality model, and rollback guidance are documented in [`docs/BACKUP.md`](docs/BACKUP.md). Migration from the legacy bind-mount layout is documented in [`docs/MIGRATION.md`](docs/MIGRATION.md).
-
-## Important limitations
-
-### Netdata
-
-For complete Linux host monitoring, Netdata uses host networking and PID namespace, `SYS_PTRACE`, `SYS_ADMIN`, read-only host mounts, and the Docker socket. It therefore has a separate opt-in `netdata` profile, is not started by the ordinary `make up` command, and is exposed directly on `NETDATA_PORT` (`19999` by default).
-
-### Portainer
-
-Portainer is intended to administer the Docker host and therefore mounts the Docker socket directly. Do not publish it to the Internet, and restrict access to a trusted network.
-
-### openHAB
-
-For the MQTT Binding, configure the internal broker `mosquitto:1883`, the `MOSQUITTO_USERNAME` user from `.env`, and the password from `.secrets/mosquitto_password`. This address works inside the Compose network and does not depend on the published host port.
-
-The bridge network and Traefik provide a portable, secure default. Some bindings that use UPnP, multicast, or USB devices require host networking, additional capabilities, or `devices`. Add those through a local override file only for the specific hardware.
-
-### TLS
-
-The local default uses HTTP and `*.localhost`. Automatic public TLS is not enabled because it requires a real domain, DNS, and a selected ACME challenge. Add it through a deployment-specific override instead of storing a fictitious universal configuration.
-
-## k3s
-
-k3s does not run inside this Compose project. The reasons and a safe same-host installation option are documented in [`docs/K3S.md`](docs/K3S.md).
+Generated files are ignored under `security-reports/` and `sbom/`. Exceptions are explicit entries in `security/exceptions.json` containing vulnerability ID, exact image, owner, reason, and a future expiration date. Expired or malformed exceptions fail `make check`.
 
 ## Six verification levels
 
@@ -197,17 +256,7 @@ k3s does not run inside this Compose project. The reasons and a safe same-host i
 make check
 ```
 
-This runs static policies, unit and behavior tests, shell syntax checks, and validation of the fully merged Compose model. Application containers are not started. The check rejects:
-
-- invalid Compose, JSON, or TOML;
-- non-idempotent local credential generation or incorrect permissions;
-- newline-terminated raw tokens that cannot be passed safely in HTTP headers;
-- missing roadmap services;
-- `latest` and implicit image tags;
-- known credentials published in earlier revisions;
-- destructive host-wide commands;
-- Cyrillic text in tracked UTF-8 repository files;
-- accidentally tracked `.env` or `.secrets/` files.
+Runs static policies, unit and behavior tests, shell syntax validation, secret-source placeholders, TLS/release/security policy validation, English-only tracked-file validation, and the fully rendered Compose model. It starts no application containers and performs no registry scan.
 
 ### 2. Registry manifest check
 
@@ -215,7 +264,7 @@ This runs static policies, unit and behavior tests, shell syntax checks, and val
 make check-images
 ```
 
-This retrieves only registry manifests through Docker Buildx; it does not download image layers or start services. The check fails when a tag does not exist or an image does not publish both maintained variants: `linux/amd64` and `linux/arm64`.
+Uses Docker Buildx raw manifests to verify every service and helper image publishes both `linux/amd64` and `linux/arm64`.
 
 ### 3. Isolated default-stack runtime check
 
@@ -223,18 +272,7 @@ This retrieves only registry manifests through Docker Buildx; it does not downlo
 make check-runtime
 ```
 
-This creates a disposable Compose project with unique network and resource names, replaces InfluxDB, Grafana, and Portainer data with `tmpfs`, publishes Traefik only on a random `127.0.0.1` port, and starts core + monitoring + Portainer.
-
-The check verifies:
-
-- `401` without Basic Auth and `200` with it for whoami and the Traefik dashboard;
-- InfluxDB and Grafana health endpoints;
-- the Portainer status endpoint;
-- the provisioned InfluxDB datasource in Grafana;
-- a real `system` measurement produced by Telegraf in InfluxDB;
-- guaranteed scoped cleanup that removes only disposable runtime volumes.
-
-The check downloads missing image layers and takes noticeably longer. It does not start Netdata, Mosquitto, openHAB, or k6, and does not read deployment `.env` or `.secrets/`.
+Starts a unique disposable core + monitoring + Portainer project on a random loopback HTTP port. It verifies Basic Auth, application health, Grafana provisioning, a real Telegraf measurement in InfluxDB, and scoped cleanup.
 
 ### 4. Isolated IoT runtime check
 
@@ -242,17 +280,7 @@ The check downloads missing image layers and takes noticeably longer. It does no
 make check-iot-runtime
 ```
 
-This creates a separate `homelab-iot-runtime-*` project, publishes HTTP and MQTT only on random loopback ports, starts core plus the `iot` profile, and uses the official Mosquitto image for short-lived client containers through Linux host networking.
-
-The check verifies:
-
-- rejection of anonymous MQTT publish operations;
-- an authenticated QoS 1 retained publish and exact payload retrieval through subscribe;
-- retained-payload persistence after `restart mosquitto`, which verifies SQLite persistence on a project-scoped volume;
-- openHAB readiness through its Traefik hostname;
-- absence of the MQTT password from process arguments and guaranteed scoped cleanup.
-
-The check downloads missing Mosquitto and openHAB layers and is intended only for Linux Docker Engine. It does not install the openHAB MQTT Binding, complete the setup wizard, or test UPnP, multicast, USB, or other hardware.
+Starts a unique core + IoT project on random loopback HTTP and MQTT ports. It verifies anonymous rejection, authenticated QoS 1 retained publish/subscribe, retained-message persistence after Mosquitto restart, openHAB readiness, and scoped cleanup. The deployment variable `MQTT_HOST_IP` remains supported.
 
 ### 5. Isolated backup/restore runtime check
 
@@ -260,9 +288,7 @@ The check downloads missing Mosquitto and openHAB layers and is intended only fo
 make check-backup-runtime
 ```
 
-This creates unique disposable local volumes containing nested text and binary files, an empty file, unusual permissions, and a safe relative symbolic link. It then performs a cold backup, offline verification, source-volume deletion, and a side-by-side restore under a different project name.
-
-The check compares bytes and relevant filesystem metadata, confirms rejection of a tampered snapshot and a non-empty target volume, and then removes only its own fixture resources. It does not start homelab applications or read deployment `.env` or `.secrets/`; the detailed recovery procedure is in [`docs/BACKUP.md`](docs/BACKUP.md).
+Creates disposable volumes, executes the real local snapshot/verification/restore engine, compares bytes and metadata, rejects tampering and non-empty targets, and removes only its own fixtures.
 
 ### 6. Isolated optional-profile runtime check
 
@@ -270,14 +296,24 @@ The check compares bytes and relevant filesystem metadata, confirms rejection of
 make check-optional-runtime
 ```
 
-This creates a separate `homelab-optional-runtime-*` project, chooses a random free `NETDATA_PORT`, and starts only Netdata plus a direct whoami target for the disposable k6 container.
+Chooses a random `NETDATA_PORT`, starts only Netdata and the direct k6 target, verifies `/api/v1/info`, a real `system.cpu` sample, the committed k6 thresholds, expected service scope, and scoped cleanup.
 
-The check verifies:
+## Additional community verification
 
-- Netdata readiness through its local `/api/v1/info` endpoint;
-- a real `system.cpu` data sample collected from the Linux host;
-- the committed `config/k6/smoke.js` checks and thresholds against whoami;
-- absence of monitoring, tools, and IoT application services;
-- guaranteed scoped cleanup of the unique project and its volumes.
+```bash
+make check-community-runtime
+make check-remote-backup-runtime
+make check-security
+```
 
-The check downloads missing Netdata, whoami, and k6 layers and is intended only for Linux Docker Engine because Netdata uses host networking, the host PID namespace, Linux capabilities, and read-only host mounts. It does not read deployment `.env` or `.secrets/` and does not enroll the temporary agent in Netdata Cloud.
+The community workflow verifies authenticated Uptime Kuma, Homepage, and Dozzle routes. The remote-backup workflow proves an encrypted restic init/backup/check/restore round trip and wrong-password rejection. The Security workflow generates SBOMs and enforces the fixable-CRITICAL policy. All real runtime workflows use unique resource names, bounded waits, failure diagnostics, and project-scoped cleanup.
+
+## Migration and advanced deployment
+
+- legacy data migration: [`docs/MIGRATION.md`](docs/MIGRATION.md)
+- k3s same-host guidance: [`docs/K3S.md`](docs/K3S.md)
+- AdGuard network rollout: [`docs/ADGUARD.md`](docs/ADGUARD.md)
+- Authelia setup and recovery: [`docs/AUTHELIA.md`](docs/AUTHELIA.md)
+- module lifecycle and privileges: [`docs/MODULES.md`](docs/MODULES.md)
+
+k3s remains separate from this Compose application. Rootless Docker, SELinux, NAS wrappers, Docker Desktop, custom socket locations, multicast discovery, USB devices, and public TLS may require local overrides; they are not silently enabled by the repository.
