@@ -1,0 +1,22 @@
+tls:
+  certificates:
+    - certFile: /etc/traefik/certs/fullchain.pem
+      keyFile: /etc/traefik/certs/privkey.pem
+
+http:
+  middlewares:
+    secure-headers:
+      headers:
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: no-referrer
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+
+  routers:
+    tls-probe:
+      rule: Host(`replace-with-your-domain.invalid`)
+      entryPoints:
+        - websecure
+      service: noop@internal
+      tls: {}
