@@ -221,7 +221,7 @@ Keep certificate material under ignored `local/` paths or another operator-contr
 | Traefik | `3.7.8` |
 | whoami | `1.11.0` |
 | InfluxDB | `2.9.1` |
-| Telegraf | `1.39.1` |
+| Telegraf | `1.39.2` |
 | Grafana | `13.1.0` |
 | Portainer CE LTS | `2.39.5` |
 | Netdata | `2.10.3` |
