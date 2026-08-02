@@ -1,0 +1,20 @@
+x-module-owner: dashboard
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v1.13.1
+    profiles: [dashboard]
+    restart: unless-stopped
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: home.${BASE_DOMAIN:-localhost}
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.homepage.rule: Host(`home.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.homepage.entrypoints: web
+      traefik.http.routers.homepage.middlewares: ${AUTH_MIDDLEWARE:-local-auth@docker}
+      traefik.http.services.homepage.loadbalancer.server.port: "3000"
