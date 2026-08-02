@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "scripts" / "check_images.py"
 RESTIC_IMAGE = "restic/restic:0.18.1"
+TRIVY_IMAGE = "ghcr.io/aquasecurity/trivy:0.70.0"
 
 spec = importlib.util.spec_from_file_location("legacy_check_images", SOURCE)
 if spec is None or spec.loader is None:
@@ -42,6 +43,7 @@ original_configured_images = legacy.configured_images
 def configured_images() -> set[str]:
     images = original_configured_images()
     images.add(RESTIC_IMAGE)
+    images.add(TRIVY_IMAGE)
     return images
 
 
