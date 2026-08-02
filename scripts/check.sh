@@ -27,10 +27,12 @@ python3 scripts/check_remote_backup_policy.py
 python3 scripts/check_optional_runtime_policy_modular.py
 python3 scripts/check_modules.py
 python3 scripts/check_community_services.py
+python3 scripts/check_auth_runtime_policy.py
 python3 scripts/check_tls_examples.py
 python3 scripts/check_security_policy.py
 python3 scripts/check_release_policy.py
 python3 scripts/test_community_runtime.py
+python3 scripts/test_auth_runtime.py
 python3 scripts/test_init.py
 python3 scripts/test_init_community.py
 python3 scripts/test_dns_preflight.py
