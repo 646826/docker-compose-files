@@ -29,6 +29,7 @@ python3 scripts/check_modules.py
 python3 scripts/check_community_services.py
 python3 scripts/check_tls_examples.py
 python3 scripts/check_security_policy.py
+python3 scripts/check_release_policy.py
 python3 scripts/test_community_runtime.py
 python3 scripts/test_init.py
 python3 scripts/test_init_community.py
