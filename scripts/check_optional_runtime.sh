@@ -76,7 +76,11 @@ except (OSError, UnicodeDecodeError, json.JSONDecodeError):
 
 if not isinstance(document, dict):
     raise SystemExit(1)
-if document.get("id") != "system.cpu":
+identity = " ".join(
+    str(document.get(field, ""))
+    for field in ("id", "name")
+)
+if "system.cpu" not in identity:
     raise SystemExit(1)
 data = document.get("data")
 if not isinstance(data, list) or not data:
