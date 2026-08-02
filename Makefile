@@ -2,17 +2,20 @@ SHELL := /bin/sh
 COMPOSE ?= docker compose
 BACKUP_ROOT ?= backups
 DEFAULT_PROFILES := --profile monitoring --profile tools
-ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile netdata --profile test
+ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile netdata --profile test --profile uptime --profile dns --profile dashboard --profile auth --profile logs
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init check check-images check-runtime check-iot-runtime check-optional-runtime backup verify-backup restore check-backup-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
+.PHONY: help init doctor check check-images check-runtime check-iot-runtime check-optional-runtime backup verify-backup restore check-backup-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 init: ## Create .env and missing local secrets without overwriting existing values
 	@./scripts/init.sh
+
+doctor: ## Diagnose Docker, Compose, ports, resources, and local configuration without changing the host
+	@python3 scripts/doctor.py
 
 check: ## Validate static files, bootstrap behavior, shell scripts, and the full Compose model
 	@./scripts/check.sh
@@ -52,7 +55,7 @@ core: init ## Start Traefik, Docker socket proxy, and whoami
 up: init ## Start the legacy-equivalent stack: core, monitoring, and Portainer
 	@$(COMPOSE) $(DEFAULT_PROFILES) up -d
 
-full: init ## Start every persistent service, including Netdata, Mosquitto, and openHAB
+full: init ## Start every established persistent service, including Netdata, Mosquitto, and openHAB
 	@$(COMPOSE) --profile monitoring --profile tools --profile iot --profile netdata up -d
 
 monitoring: init ## Start core plus InfluxDB, Telegraf, and Grafana
