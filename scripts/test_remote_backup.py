@@ -14,6 +14,8 @@ from remote_backup import (
     retention_arguments,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 class EnvironmentParsingTests(unittest.TestCase):
     def test_parses_comments_and_literal_values_without_shell_evaluation(self) -> None:
@@ -112,6 +114,15 @@ class DockerCommandTests(unittest.TestCase):
                 "--prune",
             ],
         )
+
+
+class RuntimeHarnessTests(unittest.TestCase):
+    def test_runtime_restic_uses_calling_uid_gid(self) -> None:
+        source = (ROOT / "scripts/check_remote_backup_runtime.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('--user "$(id -u):$(id -g)"', source)
+        self.assertIn("for command in docker python3 openssl id; do", source)
 
 
 if __name__ == "__main__":
