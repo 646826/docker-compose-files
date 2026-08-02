@@ -78,6 +78,11 @@ create_placeholder influxdb_token ci-token
 create_placeholder grafana_admin_password ci-password
 create_placeholder traefik_users 'ci:$2y$12$placeholder'
 create_placeholder mosquitto_passwords 'ci:$7$220000$placeholder$placeholder'
+create_placeholder authelia_jwt_secret ci-jwt-secret
+create_placeholder authelia_session_secret ci-session-secret
+create_placeholder authelia_storage_encryption_key ci-storage-key
+create_placeholder authelia_configuration.yml 'server: {address: tcp4://0.0.0.0:9091}'
+create_placeholder authelia_users.yml 'users: {}'
 
 PROFILES="--profile monitoring --profile tools --profile iot --profile netdata --profile test --profile uptime --profile dns --profile dashboard --profile auth --profile logs"
 docker compose --env-file .env.example $PROFILES config --quiet
