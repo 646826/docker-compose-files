@@ -1,0 +1,21 @@
+services:
+  traefik:
+    command:
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --ping=true
+      - --providers.docker=true
+      - --providers.docker.endpoint=tcp://docker-socket-proxy:2375
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --accesslog=true
+      - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
+    ports:
+      - "${HTTPS_HOST_IP:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ${TLS_DYNAMIC_DIR:?set TLS_DYNAMIC_DIR to an untracked absolute directory}:/etc/traefik/dynamic:ro
+      - ${TLS_CERT_DIR:?set TLS_CERT_DIR to an untracked absolute directory}:/etc/traefik/certs:ro
