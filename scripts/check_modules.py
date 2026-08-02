@@ -19,6 +19,14 @@ MODULES = {
     "auth": {"authelia"},
     "logs": {"dozzle"},
 }
+PINNED_IMAGES = {
+    "monitoring": {
+        "telegraf": "telegraf:1.39.2-alpine",
+    },
+    "uptime": {
+        "uptime-kuma": "louislam/uptime-kuma:2.4.0-slim",
+    },
+}
 
 
 def service_names(text: str) -> set[str]:
@@ -27,6 +35,15 @@ def service_names(text: str) -> set[str]:
     if services_match is None:
         return set()
     return set(re.findall(r"(?m)^  ([a-zA-Z0-9_-]+):\s*$", services_match.group(1)))
+
+
+def service_block(text: str, service: str) -> str:
+    """Return one top-level Compose service block."""
+    match = re.search(
+        rf"(?ms)^  {re.escape(service)}:\s*\n(.*?)(?=^  [a-zA-Z0-9_-]+:\s*\n|^[a-zA-Z][\w-]*:\s*\n|\Z)",
+        text,
+    )
+    return match.group(0) if match else ""
 
 
 def main() -> int:
@@ -64,6 +81,13 @@ def main() -> int:
             final = image.rsplit("/", 1)[-1]
             if ":" not in final or final.endswith(":latest"):
                 errors.append(f"{relative} has an unpinned image: {image}")
+
+        for service, expected_image in PINNED_IMAGES.get(module, {}).items():
+            block = service_block(text, service)
+            if f"image: {expected_image}" not in block:
+                errors.append(
+                    f"{relative} must pin {service} to {expected_image}"
+                )
 
     expected_services = set().union(*MODULES.values())
     if seen != expected_services:
