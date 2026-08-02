@@ -136,6 +136,12 @@ def main() -> int:
         "scripts/check.sh",
         "scripts/check_images.py",
         "scripts/check_runtime.sh",
+        "scripts/check_runtime_policy.py",
+        "scripts/check_iot_runtime.sh",
+        "scripts/check_iot_runtime_policy.py",
+        "scripts/check_optional_runtime.sh",
+        "scripts/check_optional_runtime_policy.py",
+        "scripts/check_english_only.py",
         "scripts/backup.py",
         "scripts/check_backup_policy.py",
         "scripts/check_backup_runtime.sh",
@@ -143,8 +149,14 @@ def main() -> int:
         "scripts/test_init.py",
         "scripts/test_check_images.py",
         "scripts/test_runtime.py",
+        "scripts/test_iot_runtime.py",
+        "scripts/test_optional_runtime.py",
+        "scripts/test_english_only.py",
         ".github/workflows/ci.yml",
         ".github/workflows/images.yml",
+        ".github/workflows/runtime.yml",
+        ".github/workflows/iot-runtime.yml",
+        ".github/workflows/optional-runtime.yml",
         ".github/workflows/backup-runtime.yml",
         "renovate.json",
     )
@@ -256,6 +268,8 @@ def main() -> int:
         netdata_block = service_block(compose, "netdata")
         if "profiles: [netdata]" not in netdata_block:
             error("Netdata must use its own opt-in profile")
+        if "NETDATA_LISTENER_PORT: ${NETDATA_PORT:-19999}" not in netdata_block:
+            error("Netdata must preserve a configurable listener with port 19999 as the default")
 
         mosquitto_block = service_block(compose, "mosquitto")
         runtime_password_steps = (
@@ -293,6 +307,8 @@ def main() -> int:
         for setting in (
             "HOMELAB_PROJECT_NAME=homelab",
             "HTTP_HOST_IP=0.0.0.0",
+            "MQTT_HOST_IP=0.0.0.0",
+            "NETDATA_PORT=19999",
         ):
             if setting not in env_example:
                 error(f".env.example is missing runtime isolation default: {setting}")
@@ -308,6 +324,9 @@ def main() -> int:
             "init",
             "check",
             "check-images",
+            "check-runtime",
+            "check-iot-runtime",
+            "check-optional-runtime",
             "backup",
             "verify-backup",
             "restore",
@@ -354,14 +373,22 @@ def main() -> int:
 
     check_script = read_required("scripts/check.sh")
     if check_script:
-        if "python3 scripts/test_check_images.py" not in check_script:
-            error("scripts/check.sh must run image verification unit tests")
-        if "python3 scripts/test_runtime.py" not in check_script:
-            error("scripts/check.sh must run runtime harness behavior tests")
-        if "python3 scripts/test_backup.py" not in check_script:
-            error("scripts/check.sh must run backup behavior tests")
-        if "python3 scripts/check_backup_policy.py" not in check_script:
-            error("scripts/check.sh must run backup policy checks")
+        required_fast_checks = (
+            "python3 scripts/check_runtime_policy.py",
+            "python3 scripts/check_iot_runtime_policy.py",
+            "python3 scripts/check_backup_policy.py",
+            "python3 scripts/check_optional_runtime_policy.py",
+            "python3 scripts/test_check_images.py",
+            "python3 scripts/test_runtime.py",
+            "python3 scripts/test_iot_runtime.py",
+            "python3 scripts/test_backup.py",
+            "python3 scripts/test_english_only.py",
+            "python3 scripts/check_english_only.py",
+            "python3 scripts/test_optional_runtime.py",
+        )
+        for command in required_fast_checks:
+            if command not in check_script:
+                error(f"scripts/check.sh must run: {command}")
 
     image_checker = read_required("scripts/check_images.py")
     if image_checker:
@@ -423,12 +450,13 @@ def main() -> int:
         if "docs/BACKUP.md" not in readme or "make backup" not in readme:
             error("README must document the verified backup workflow")
         required_verification_docs = (
-            "## Five verification levels",
+            "## Six verification levels",
             "make check",
             "make check-images",
             "make check-runtime",
             "make check-iot-runtime",
             "make check-backup-runtime",
+            "make check-optional-runtime",
             "| Backup helper Alpine | `3.24.1` |",
         )
         for fragment in required_verification_docs:

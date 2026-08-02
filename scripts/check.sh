@@ -21,11 +21,15 @@ python3 scripts/check_static.py
 python3 scripts/check_runtime_policy.py
 python3 scripts/check_iot_runtime_policy.py
 python3 scripts/check_backup_policy.py
+python3 scripts/check_optional_runtime_policy.py
 python3 scripts/test_init.py
 python3 scripts/test_check_images.py
 python3 scripts/test_runtime.py
 python3 scripts/test_iot_runtime.py
 python3 scripts/test_backup.py
+python3 scripts/test_english_only.py
+python3 scripts/check_english_only.py
+python3 scripts/test_optional_runtime.py
 
 for script in scripts/*.sh; do
   sh -n "$script"
@@ -61,7 +65,7 @@ create_placeholder influxdb_password ci-password
 create_placeholder influxdb_token ci-token
 create_placeholder grafana_admin_password ci-password
 create_placeholder traefik_users 'ci:$2y$12$placeholder'
-create_placeholder mosquitto_passwords 'ci:$argon2id$v=19$m=19456,t=2,p=1$placeholder$placeholder'
+create_placeholder mosquitto_passwords 'ci:$7$220000$placeholder$placeholder'
 
 PROFILES="--profile monitoring --profile tools --profile iot --profile netdata --profile test"
 docker compose --env-file .env.example $PROFILES config --quiet

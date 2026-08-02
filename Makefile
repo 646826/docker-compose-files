@@ -6,7 +6,7 @@ ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile net
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init check check-images check-runtime check-iot-runtime backup verify-backup restore check-backup-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
+.PHONY: help init check check-images check-runtime check-iot-runtime check-optional-runtime backup verify-backup restore check-backup-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -25,6 +25,9 @@ check-runtime: ## Pull missing layers, start the isolated default stack, and run
 
 check-iot-runtime: ## Start the isolated IoT stack and verify MQTT auth/persistence plus openHAB readiness
 	@sh ./scripts/check_iot_runtime.sh
+
+check-optional-runtime: ## Verify Netdata host metrics and the committed k6 smoke test in isolation
+	@sh ./scripts/check_optional_runtime.sh
 
 backup: ## Create a verified cold snapshot of all existing project volumes
 	@BACKUP_ROOT="$(BACKUP_ROOT)" python3 scripts/backup.py create
