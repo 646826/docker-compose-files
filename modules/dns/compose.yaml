@@ -1,0 +1,25 @@
+x-module-owner: dns
+
+services:
+  adguard-home:
+    image: adguard/adguardhome:v0.107.76
+    profiles: [dns]
+    restart: unless-stopped
+    ports:
+      - "${DNS_HOST_IP:-0.0.0.0}:${DNS_PORT:-53}:53/tcp"
+      - "${DNS_HOST_IP:-0.0.0.0}:${DNS_PORT:-53}:53/udp"
+      - "${ADGUARD_SETUP_HOST_IP:-127.0.0.1}:${ADGUARD_SETUP_PORT:-3000}:3000/tcp"
+    volumes:
+      - adguard_work:/opt/adguardhome/work
+      - adguard_config:/opt/adguardhome/conf
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.adguard.rule: Host(`dns.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.adguard.entrypoints: web
+      traefik.http.routers.adguard.middlewares: ${AUTH_MIDDLEWARE:-local-auth@docker}
+      traefik.http.services.adguard.loadbalancer.server.port: "3000"

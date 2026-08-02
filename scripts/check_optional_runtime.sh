@@ -162,6 +162,7 @@ NETDATA_PORT=$(
 RESPONSE_BODY="$WORKDIR/response.body"
 
 cp "$ROOT/compose.yaml" "$WORKDIR/compose.yaml"
+cp -R "$ROOT/modules" "$WORKDIR/modules"
 cp -R "$ROOT/config" "$WORKDIR/config"
 mkdir "$WORKDIR/.secrets"
 chmod 700 "$WORKDIR/.secrets"

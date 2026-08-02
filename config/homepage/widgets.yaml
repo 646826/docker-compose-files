@@ -1,0 +1,11 @@
+- logo:
+    icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/docker.svg
+- greeting:
+    text_size: xl
+    text: Homelab
+- datetime:
+    text_size: md
+    format:
+      dateStyle: long
+      timeStyle: short
+      hourCycle: h23

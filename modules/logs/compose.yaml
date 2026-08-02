@@ -1,0 +1,27 @@
+x-module-owner: logs
+
+services:
+  dozzle:
+    image: amir20/dozzle:v10.6.2
+    profiles: [logs]
+    restart: unless-stopped
+    depends_on:
+      docker-socket-proxy:
+        condition: service_healthy
+    environment:
+      DOZZLE_REMOTE_HOST: tcp://docker-socket-proxy:2375
+      DOZZLE_NO_ANALYTICS: "true"
+      DOZZLE_ENABLE_ACTIONS: "false"
+      DOZZLE_ENABLE_SHELL: "false"
+    networks:
+      - proxy
+      - socket
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.dozzle.rule: Host(`logs.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.dozzle.entrypoints: web
+      traefik.http.routers.dozzle.middlewares: ${AUTH_MIDDLEWARE:-local-auth@docker}
+      traefik.http.services.dozzle.loadbalancer.server.port: "8080"

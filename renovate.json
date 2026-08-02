@@ -27,6 +27,18 @@
         "HELPER_IMAGE\\s*=\\s*\"(?<depName>[^:\\s\"]+):(?<currentValue>[^\\s\"]+)\""
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Update restic and security helper container images",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts\\/(?:remote_backup|check_images_community|security)\\.py$/",
+        "/^scripts\\/check_[a-z0-9_]+_runtime\\.sh$/"
+      ],
+      "matchStrings": [
+        "(?:RESTIC_IMAGE|TRIVY_IMAGE)\\s*=\\s*\"?(?<depName>[^:\\s\"]+):(?<currentValue>[^\\s\"]+)\"?"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [

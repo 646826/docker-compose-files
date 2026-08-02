@@ -17,19 +17,39 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 cd "$ROOT"
-python3 scripts/check_static.py
+python3 scripts/check_static_modular.py
 python3 scripts/check_runtime_policy.py
-python3 scripts/check_iot_runtime_policy.py
+# Compatibility owner: python3 scripts/check_iot_runtime_policy.py
+python3 scripts/check_iot_runtime_policy_modular.py
 python3 scripts/check_backup_policy.py
-python3 scripts/check_optional_runtime_policy.py
+python3 scripts/check_remote_backup_policy.py
+# Compatibility owner: python3 scripts/check_optional_runtime_policy.py
+python3 scripts/check_optional_runtime_policy_modular.py
+python3 scripts/check_modules.py
+python3 scripts/check_community_services.py
+python3 scripts/check_auth_runtime_policy.py
+python3 scripts/check_tls_examples.py
+python3 scripts/check_security_policy.py
+python3 scripts/check_release_policy.py
+python3 scripts/test_community_runtime.py
+python3 scripts/test_auth_runtime.py
 python3 scripts/test_init.py
+python3 scripts/test_init_community.py
+python3 scripts/test_dns_preflight.py
 python3 scripts/test_check_images.py
-python3 scripts/test_runtime.py
-python3 scripts/test_iot_runtime.py
+# Compatibility owner: python3 scripts/test_runtime.py
+python3 scripts/test_runtime_modular.py
+# Compatibility owner: python3 scripts/test_iot_runtime.py
+python3 scripts/test_iot_runtime_modular.py
 python3 scripts/test_backup.py
+python3 scripts/test_backup_community.py
+python3 scripts/test_remote_backup.py
+python3 scripts/test_security.py
 python3 scripts/test_english_only.py
 python3 scripts/check_english_only.py
-python3 scripts/test_optional_runtime.py
+# Compatibility owner: python3 scripts/test_optional_runtime.py
+python3 scripts/test_optional_runtime_modular.py
+python3 scripts/test_doctor.py
 
 for script in scripts/*.sh; do
   sh -n "$script"
@@ -66,8 +86,13 @@ create_placeholder influxdb_token ci-token
 create_placeholder grafana_admin_password ci-password
 create_placeholder traefik_users 'ci:$2y$12$placeholder'
 create_placeholder mosquitto_passwords 'ci:$7$220000$placeholder$placeholder'
+create_placeholder authelia_jwt_secret ci-jwt-secret
+create_placeholder authelia_session_secret ci-session-secret
+create_placeholder authelia_storage_encryption_key ci-storage-key
+create_placeholder authelia_configuration.yml 'server: {address: tcp4://0.0.0.0:9091}'
+create_placeholder authelia_users.yml 'users: {}'
 
-PROFILES="--profile monitoring --profile tools --profile iot --profile netdata --profile test"
+PROFILES="--profile monitoring --profile tools --profile iot --profile netdata --profile test --profile uptime --profile dns --profile dashboard --profile auth --profile logs"
 docker compose --env-file .env.example $PROFILES config --quiet
 
 for image in $(docker compose --env-file .env.example $PROFILES config --images); do

@@ -1,0 +1,151 @@
+{
+  "exceptions": [
+    {
+      "id": "CVE-2026-31789",
+      "image": "ghcr.io/aquasecurity/trivy:0.70.0",
+      "reason": "The current upstream Trivy 0.70.0 image still contains Alpine OpenSSL 3.5.5-r0; no newer fixed Trivy release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-25896",
+      "image": "ghcr.io/gethomepage/homepage:v1.13.1",
+      "reason": "The current upstream Homepage v1.13.1 image still bundles fast-xml-parser 5.2.5; no newer fixed Homepage release is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-48713",
+      "image": "ghcr.io/gethomepage/homepage:v1.13.1",
+      "reason": "The current upstream Homepage v1.13.1 image still bundles i18next-fs-backend 2.6.4; no newer fixed Homepage release is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-59873",
+      "image": "ghcr.io/gethomepage/homepage:v1.13.1",
+      "reason": "The current upstream Homepage v1.13.1 image still bundles affected tar packages; no newer fixed Homepage release is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "GHSA-r277-6w6q-xmqw",
+      "image": "grafana/grafana:13.1.0",
+      "reason": "The current upstream Grafana 13.1.0 image still bundles kin-openapi v0.140.0; no newer stable Grafana release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-33845",
+      "image": "louislam/uptime-kuma:2.4.0-slim",
+      "reason": "The current upstream Uptime Kuma 2.4.0-slim image still contains Debian GnuTLS 3.7.9-2+deb12u6; no newer fixed Uptime Kuma release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-42010",
+      "image": "louislam/uptime-kuma:2.4.0-slim",
+      "reason": "The current upstream Uptime Kuma 2.4.0-slim image still contains Debian GnuTLS 3.7.9-2+deb12u6; no newer fixed Uptime Kuma release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-41242",
+      "image": "louislam/uptime-kuma:2.4.0-slim",
+      "reason": "The current upstream Uptime Kuma 2.4.0-slim image still bundles protobufjs 7.2.6; no newer fixed Uptime Kuma release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-59873",
+      "image": "louislam/uptime-kuma:2.4.0-slim",
+      "reason": "The current upstream Uptime Kuma 2.4.0-slim image still bundles affected tar packages; no newer fixed Uptime Kuma release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2024-24790",
+      "image": "louislam/uptime-kuma:2.4.0-slim",
+      "reason": "The current upstream Uptime Kuma 2.4.0-slim image still contains an affected Go helper binary; no newer fixed Uptime Kuma release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2025-68121",
+      "image": "louislam/uptime-kuma:2.4.0-slim",
+      "reason": "The current upstream Uptime Kuma 2.4.0-slim image still contains an affected Go helper binary; no newer fixed Uptime Kuma release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-33186",
+      "image": "louislam/uptime-kuma:2.4.0-slim",
+      "reason": "The current upstream Uptime Kuma 2.4.0-slim image still bundles gRPC v1.79.2; no newer fixed Uptime Kuma release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-33845",
+      "image": "netdata/netdata:v2.10.3",
+      "reason": "The current upstream Netdata v2.10.3 image still contains Debian GnuTLS 3.8.9-3+deb13u2; no newer fixed Netdata release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-42010",
+      "image": "netdata/netdata:v2.10.3",
+      "reason": "The current upstream Netdata v2.10.3 image still contains Debian GnuTLS 3.8.9-3+deb13u2; no newer fixed Netdata release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-31789",
+      "image": "restic/restic:0.18.1",
+      "reason": "The current upstream restic 0.18.1 image still contains Alpine OpenSSL 3.5.1-r0; no newer fixed restic release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-33186",
+      "image": "restic/restic:0.18.1",
+      "reason": "The current upstream restic 0.18.1 image still bundles gRPC v1.74.2; no newer fixed restic release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2025-68121",
+      "image": "restic/restic:0.18.1",
+      "reason": "The current upstream restic 0.18.1 image still contains Go stdlib v1.25.1; no newer fixed restic release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-31789",
+      "image": "tecnativa/docker-socket-proxy:v0.4.2",
+      "reason": "The current upstream docker-socket-proxy v0.4.2 image still contains Alpine OpenSSL 3.5.1-r0; no newer fixed release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2025-58050",
+      "image": "tecnativa/docker-socket-proxy:v0.4.2",
+      "reason": "The current upstream docker-socket-proxy v0.4.2 image still contains PCRE2 10.43-r1; no newer fixed release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2026-49980",
+      "image": "telegraf:1.39.2-alpine",
+      "reason": "The current official Telegraf 1.39.2-alpine image still bundles the affected rclone dependency; no newer fixed official image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    },
+    {
+      "id": "CVE-2025-68121",
+      "image": "traefik/whoami:v1.11.0",
+      "reason": "The current upstream whoami v1.11.0 image still contains Go stdlib v1.24.1; no newer fixed whoami release image is available. Re-evaluate on the next Renovate update or before expiration.",
+      "owner": "homelab-maintainers",
+      "expires": "2026-09-02"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+x-module-owner: auth
+
+services:
+  authelia:
+    image: authelia/authelia:4.39.20
+    profiles: [auth]
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE: /run/secrets/authelia_jwt_secret
+      AUTHELIA_SESSION_SECRET_FILE: /run/secrets/authelia_session_secret
+      AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE: /run/secrets/authelia_storage_encryption_key
+    secrets:
+      - authelia_jwt_secret
+      - authelia_session_secret
+      - authelia_storage_encryption_key
+    volumes:
+      - ../../.secrets/authelia_configuration.yml:/config/configuration.yml:ro
+      - ../../.secrets/authelia_users.yml:/config/users_database.yml:ro
+      - authelia_data:/data
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "/app/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.authelia.rule: Host(`auth.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.authelia.entrypoints: web
+      traefik.http.services.authelia.loadbalancer.server.port: "9091"
+      traefik.http.middlewares.authelia.forwardauth.address: http://authelia:9091/api/authz/forward-auth
+      traefik.http.middlewares.authelia.forwardauth.trustForwardHeader: "true"
+      traefik.http.middlewares.authelia.forwardauth.maxResponseBodySize: "8192"
+      traefik.http.middlewares.authelia.forwardauth.authResponseHeaders: Remote-User,Remote-Groups,Remote-Email,Remote-Name

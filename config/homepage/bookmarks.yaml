@@ -1,0 +1,7 @@
+- Documentation:
+    - Docker Compose:
+        - icon: docker.png
+          href: https://docs.docker.com/compose/
+    - Recovery guide:
+        - icon: mdi-lifebuoy
+          href: https://github.com/646826/docker-compose-files/blob/main/docs/BACKUP.md

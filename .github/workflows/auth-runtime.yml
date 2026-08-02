@@ -1,0 +1,71 @@
+name: Auth runtime
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "compose.yaml"
+      - "modules/core/**"
+      - "modules/dashboard/**"
+      - "modules/auth/**"
+      - "scripts/init_community.py"
+      - "scripts/doctor.py"
+      - "scripts/check_auth_runtime.sh"
+      - "scripts/check_auth_runtime_policy.py"
+      - "scripts/test_auth_runtime.py"
+      - "Makefile"
+      - ".github/workflows/auth-runtime.yml"
+  pull_request:
+    paths:
+      - "compose.yaml"
+      - "modules/core/**"
+      - "modules/dashboard/**"
+      - "modules/auth/**"
+      - "scripts/init_community.py"
+      - "scripts/doctor.py"
+      - "scripts/check_auth_runtime.sh"
+      - "scripts/check_auth_runtime_policy.py"
+      - "scripts/test_auth_runtime.py"
+      - "Makefile"
+      - ".github/workflows/auth-runtime.yml"
+  schedule:
+    - cron: "47 6 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-runtime-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Verify Authelia and ForwardAuth runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Verify Docker and Compose
+        run: |
+          docker version
+          docker compose version
+
+      - name: Run isolated auth runtime test
+        shell: bash
+        run: |
+          set -o pipefail
+          make check-auth-runtime 2>&1 | tee auth-runtime.log
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-runtime-log
+          path: auth-runtime.log
+          if-no-files-found: error
+          retention-days: 3

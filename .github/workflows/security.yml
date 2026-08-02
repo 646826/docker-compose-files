@@ -1,0 +1,81 @@
+name: Security
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "compose.yaml"
+      - "modules/**"
+      - "scripts/security.py"
+      - "scripts/test_security.py"
+      - "scripts/check_security_policy.py"
+      - "scripts/check_images_community.py"
+      - "scripts/init.sh"
+      - "scripts/backup.py"
+      - "scripts/remote_backup.py"
+      - "security/**"
+      - "Makefile"
+      - ".github/workflows/security.yml"
+  pull_request:
+    paths:
+      - "compose.yaml"
+      - "modules/**"
+      - "scripts/security.py"
+      - "scripts/test_security.py"
+      - "scripts/check_security_policy.py"
+      - "scripts/check_images_community.py"
+      - "scripts/init.sh"
+      - "scripts/backup.py"
+      - "scripts/remote_backup.py"
+      - "security/**"
+      - "Makefile"
+      - ".github/workflows/security.yml"
+  schedule:
+    - cron: "29 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Generate SBOMs and enforce container policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Verify Docker
+        run: docker version
+
+      - name: Generate CycloneDX SBOMs
+        shell: bash
+        run: |
+          set -o pipefail
+          make sbom 2>&1 | tee security-sbom.log
+
+      - name: Enforce fixable critical vulnerability policy
+        shell: bash
+        run: |
+          set -o pipefail
+          make check-security 2>&1 | tee security-policy.log
+
+      - name: Upload short-lived security evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-security-reports
+          path: |
+            security-reports/
+            sbom/
+            security-sbom.log
+            security-policy.log
+          if-no-files-found: warn
+          retention-days: 3
