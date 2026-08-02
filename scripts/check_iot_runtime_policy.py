@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ERRORS: list[str] = []
 PBKDF2_COMMAND = "mosquitto_passwd -H sha512-pbkdf2 -I 220000 -c"
+PBKDF2_PLACEHOLDER = "$7$220000$"
 
 
 def error(message: str) -> None:
@@ -52,6 +53,13 @@ def check_hashing_contract(label: str, script: str) -> None:
             error(f"{label} contains unsupported or unsafe password hashing behavior: {forbidden}")
 
 
+def check_placeholder_contract(label: str, text: str) -> None:
+    if PBKDF2_PLACEHOLDER not in text:
+        error(f"{label} must use a SHA512-PBKDF2 placeholder with 220000 iterations")
+    if "$argon2id$" in text:
+        error(f"{label} must not use an Argon2id-shaped placeholder")
+
+
 def main() -> int:
     compose = read_required("compose.yaml")
     env_example = read_required(".env.example")
@@ -60,6 +68,9 @@ def main() -> int:
     security = read_required("SECURITY.md")
     init_script = read_required("scripts/init.sh")
     script = read_required("scripts/check_iot_runtime.sh")
+    default_runtime_script = read_required("scripts/check_runtime.sh")
+    image_checker = read_required("scripts/check_images.py")
+    check_script = read_required("scripts/check.sh")
     test_script = read_required("scripts/test_iot_runtime.py")
     workflow = read_required(".github/workflows/iot-runtime.yml")
 
@@ -128,6 +139,14 @@ def main() -> int:
         if re.search(r"(?m)(?:^|\s)(?:-P|--pw)(?:\s|$)", command_source):
             error("MQTT password must not be passed in a client process argument")
 
+    for label, text in (
+        ("fast Compose validation", check_script),
+        ("default runtime harness", default_runtime_script),
+        ("image manifest checker", image_checker),
+    ):
+        if text:
+            check_placeholder_contract(label, text)
+
     if test_script:
         for contract in (
             "test_success_is_isolated_and_proves_restart_persistence",
@@ -168,7 +187,6 @@ def main() -> int:
         if "MQTT_HOST_IP" not in readme:
             error("README must document MQTT_HOST_IP")
 
-    check_script = read_required("scripts/check.sh")
     if check_script:
         if "python3 scripts/check_iot_runtime_policy.py" not in check_script:
             error("scripts/check.sh must run IoT runtime policy checks")
