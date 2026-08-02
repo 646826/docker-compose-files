@@ -27,6 +27,15 @@ legacy.PROFILES = (
     "--profile", "auth",
     "--profile", "logs",
 )
+legacy.PLACEHOLDER_SECRETS.update(
+    {
+        "authelia_jwt_secret": "manifest-check-jwt",
+        "authelia_session_secret": "manifest-check-session",
+        "authelia_storage_encryption_key": "manifest-check-storage",
+        "authelia_configuration.yml": "server: {address: tcp4://0.0.0.0:9091}",
+        "authelia_users.yml": "users: {}",
+    }
+)
 original_configured_images = legacy.configured_images
 
 
