@@ -1,7 +1,6 @@
 #!/bin/sh
 set -eu
 
-ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
 RESTIC_IMAGE=restic/restic:0.18.1
 WORKDIR=
 
@@ -21,14 +20,31 @@ cleanup() {
   exit "$status"
 }
 
-restic() {
+restic_base() {
   docker run --rm \
     --volume "$WORKDIR/repository:/repository" \
     --volume "$WORKDIR/password:/run/secrets/restic_password:ro" \
     --env RESTIC_REPOSITORY=/repository \
     --env RESTIC_PASSWORD_FILE=/run/secrets/restic_password \
-    "$@" \
-    "$RESTIC_IMAGE"
+    "$@"
+}
+
+restic() {
+  restic_base "$RESTIC_IMAGE" "$@"
+}
+
+restic_source() {
+  restic_base \
+    --volume "$WORKDIR/source:/source:ro" \
+    "$RESTIC_IMAGE" \
+    "$@"
+}
+
+restic_restore() {
+  restic_base \
+    --volume "$WORKDIR/restore:/restore" \
+    "$RESTIC_IMAGE" \
+    "$@"
 }
 
 for command in docker python3 openssl; do
@@ -56,7 +72,7 @@ ln -s nested/message.txt "$WORKDIR/source/message-link"
 chmod 640 "$WORKDIR/source/nested/message.txt"
 
 restic init
-restic --volume "$WORKDIR/source:/source:ro" backup /source --tag docker-compose-files --host runtime
+restic_source backup /source --tag docker-compose-files --host runtime
 restic snapshots --json --tag docker-compose-files >"$WORKDIR/snapshots.json"
 python3 - "$WORKDIR/snapshots.json" <<'PY'
 import json
@@ -67,7 +83,7 @@ if not isinstance(snapshots, list) or len(snapshots) != 1:
     raise SystemExit("expected exactly one restic snapshot")
 PY
 restic check --read-data
-restic --volume "$WORKDIR/restore:/restore" restore latest --target /restore
+restic_restore restore latest --target /restore
 python3 - "$WORKDIR/source" "$WORKDIR/restore/source" <<'PY'
 from pathlib import Path
 import os
