@@ -22,6 +22,7 @@ cleanup() {
 
 restic_base() {
   docker run --rm \
+    --user "$(id -u):$(id -g)" \
     --volume "$WORKDIR/repository:/repository" \
     --volume "$WORKDIR/password:/run/secrets/restic_password:ro" \
     --env RESTIC_REPOSITORY=/repository \
@@ -47,7 +48,7 @@ restic_restore() {
     "$@"
 }
 
-for command in docker python3 openssl; do
+for command in docker python3 openssl id; do
   require_command "$command"
 done
 docker version >/dev/null
