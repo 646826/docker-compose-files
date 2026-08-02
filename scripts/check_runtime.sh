@@ -200,7 +200,7 @@ printf '%s' "$INFLUXDB_USERNAME" >"$WORKDIR/.secrets/influxdb_username"
 printf '%s' "$INFLUXDB_PASSWORD" >"$WORKDIR/.secrets/influxdb_password"
 printf '%s' "$INFLUXDB_TOKEN" >"$WORKDIR/.secrets/influxdb_token"
 printf '%s' "$GRAFANA_ADMIN_PASSWORD" >"$WORKDIR/.secrets/grafana_admin_password"
-printf '%s\n' 'runtime:$argon2id$v=19$m=19456,t=2,p=1$placeholder$placeholder' \
+printf '%s\n' 'runtime:$7$220000$placeholder$placeholder' \
   >"$WORKDIR/.secrets/mosquitto_passwords"
 
 HTPASSWD_IMAGE=$(sed -n 's/^HTPASSWD_IMAGE=//p' "$ROOT/scripts/init.sh" | tail -n 1)
