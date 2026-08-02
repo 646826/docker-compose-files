@@ -1,0 +1,61 @@
+name: Remote backup runtime
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/remote_backup.py"
+      - "scripts/test_remote_backup.py"
+      - "scripts/check_remote_backup_policy.py"
+      - "scripts/check_remote_backup_runtime.sh"
+      - "docs/REMOTE_BACKUP.md"
+      - "Makefile"
+      - ".github/workflows/remote-backup-runtime.yml"
+  pull_request:
+    paths:
+      - "scripts/remote_backup.py"
+      - "scripts/test_remote_backup.py"
+      - "scripts/check_remote_backup_policy.py"
+      - "scripts/check_remote_backup_runtime.sh"
+      - "docs/REMOTE_BACKUP.md"
+      - "Makefile"
+      - ".github/workflows/remote-backup-runtime.yml"
+  schedule:
+    - cron: "29 6 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remote-backup-runtime-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify encrypted remote backup round trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Verify Docker
+        run: docker version
+
+      - name: Run local restic round trip
+        shell: bash
+        run: |
+          set -o pipefail
+          make check-remote-backup-runtime 2>&1 | tee remote-backup-runtime.log
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-backup-runtime-log
+          path: remote-backup-runtime.log
+          if-no-files-found: error
+          retention-days: 3
