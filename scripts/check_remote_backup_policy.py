@@ -60,6 +60,7 @@ def main() -> int:
             "test_upload_uses_verified_snapshot_and_file_backed_credentials",
             "test_rejects_invalid_or_duplicate_keys",
             "test_retention_is_explicit_and_stable",
+            "test_runtime_restic_uses_calling_uid_gid",
         ):
             if name not in tests:
                 ERRORS.append(f"remote backup regression test is missing: {name}")
@@ -67,6 +68,8 @@ def main() -> int:
     if runtime:
         for fragment in (
             "restic/restic:0.18.1",
+            'for command in docker python3 openssl id; do',
+            '--user "$(id -u):$(id -g)"',
             "restic init",
             "restic_source backup",
             "restic check --read-data",
