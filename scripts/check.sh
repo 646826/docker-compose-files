@@ -33,6 +33,7 @@ python3 scripts/test_runtime_modular.py
 # Compatibility owner: python3 scripts/test_iot_runtime.py
 python3 scripts/test_iot_runtime_modular.py
 python3 scripts/test_backup.py
+python3 scripts/test_backup_community.py
 python3 scripts/test_remote_backup.py
 python3 scripts/test_english_only.py
 python3 scripts/check_english_only.py
