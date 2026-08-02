@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "scripts" / "check_auth_runtime.sh"
 MODULE = ROOT / "modules" / "auth" / "compose.yaml"
+MAKEFILE = ROOT / "Makefile"
 
 
 class AuthRuntimeContractTests(unittest.TestCase):
@@ -48,6 +49,15 @@ class AuthRuntimeContractTests(unittest.TestCase):
         self.assertIn("healthcheck:", module)
         self.assertIn('/app/healthcheck.sh', module)
         self.assertIn("start_period: 20s", module)
+
+    def test_general_commands_include_auth_only_after_initialization(self) -> None:
+        makefile = MAKEFILE.read_text(encoding="utf-8")
+        self.assertIn(
+            "AUTH_PROFILE := $(if $(wildcard .secrets/authelia_configuration.yml),--profile auth,)",
+            makefile,
+        )
+        all_profiles = makefile.split("ALL_PROFILES :=", 1)[1].splitlines()[0]
+        self.assertIn("$(AUTH_PROFILE)", all_profiles)
 
 
 if __name__ == "__main__":
