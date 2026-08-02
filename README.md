@@ -14,9 +14,11 @@ The repository preserves all previous capabilities—Traefik, InfluxDB, Telegraf
 - Traefik and Telegraf access to the Docker API through a restricted socket proxy;
 - named volumes that are not removed by `make down`;
 - health checks, CI validation, Renovate, and compact maintainable configuration;
+- a permanent English-only gate for tracked UTF-8 repository files;
 - a separate check for image tag existence and `amd64`/`arm64` manifests;
 - an isolated runtime smoke test that launches the actual default stack;
 - a separate IoT runtime smoke test for MQTT authentication and persistence, plus openHAB readiness;
+- an isolated optional-profile runtime test for Netdata host metrics and the committed k6 smoke script;
 - verifiable cold backup and restore for named volumes, with a manifest, checksums, and a real CI round trip;
 - k3s kept separate from Compose so the basic stack does not become a complex platform.
 
@@ -55,11 +57,11 @@ make up
 | InfluxDB | `http://influxdb.localhost` | `make up` / `make monitoring` |
 | Grafana | `http://grafana.localhost` | `make up` / `make monitoring` |
 | Portainer | `http://portainer.localhost` | `make up` / `make tools` |
-| Netdata | `http://localhost:19999` | `make full` / `make netdata` |
+| Netdata | `http://localhost:${NETDATA_PORT}` (`19999` by default) | `make full` / `make netdata` |
 | openHAB | `http://openhab.localhost` | `make full` / `make iot` |
 | Mosquitto | `mqtt://localhost:1883` | `make full` / `make iot` |
 
-The domain, bind addresses, HTTP port, MQTT port, and time zone are configured in `.env`. `HTTP_HOST_IP` and `MQTT_HOST_IP` default to `0.0.0.0`; set them to `127.0.0.1` to publish the corresponding port only on the local host. `HOMELAB_PROJECT_NAME` sets the common prefix for the project, networks, and volumes; the default `homelab` preserves the previous names. For access from another computer, configure local DNS or hosts-file entries for the selected `BASE_DOMAIN`.
+The domain, bind addresses, HTTP port, MQTT port, Netdata port, and time zone are configured in `.env`. `HTTP_HOST_IP` and `MQTT_HOST_IP` default to `0.0.0.0`; set them to `127.0.0.1` to publish the corresponding port only on the local host. `NETDATA_PORT` defaults to `19999`; Netdata uses host networking, so choose another free port when that listener is already occupied. `HOMELAB_PROJECT_NAME` sets the common prefix for the project, networks, and volumes; the default `homelab` preserves the previous names. For access from another computer, configure local DNS or hosts-file entries for the selected `BASE_DOMAIN`.
 
 ## Commands
 
@@ -82,6 +84,7 @@ The domain, bind addresses, HTTP port, MQTT port, and time zone are configured i
 | `make check-images` | verify registry tags and manifests for `amd64`/`arm64` |
 | `make check-runtime` | start an isolated default stack and verify routes, authentication, provisioning, and metrics |
 | `make check-iot-runtime` | start an isolated IoT stack and verify MQTT authentication, persistence, and openHAB readiness |
+| `make check-optional-runtime` | start isolated Netdata and k6 checks without using deployment configuration |
 | `make backup` | create an atomic, verified cold snapshot of existing named volumes |
 | `make verify-backup BACKUP=...` | verify the manifest, checksums, and tar safety offline |
 | `make restore BACKUP=...` | restore a snapshot into missing or empty volumes for the current project name |
@@ -166,7 +169,7 @@ The complete procedure, confidentiality model, and rollback guidance are documen
 
 ### Netdata
 
-For complete Linux host monitoring, Netdata uses host networking and PID namespace, `SYS_PTRACE`, `SYS_ADMIN`, read-only host mounts, and the Docker socket. It therefore has a separate opt-in `netdata` profile, is not started by the ordinary `make up` command, and is exposed directly on port `19999`.
+For complete Linux host monitoring, Netdata uses host networking and PID namespace, `SYS_PTRACE`, `SYS_ADMIN`, read-only host mounts, and the Docker socket. It therefore has a separate opt-in `netdata` profile, is not started by the ordinary `make up` command, and is exposed directly on `NETDATA_PORT` (`19999` by default).
 
 ### Portainer
 
@@ -186,7 +189,7 @@ The local default uses HTTP and `*.localhost`. Automatic public TLS is not enabl
 
 k3s does not run inside this Compose project. The reasons and a safe same-host installation option are documented in [`docs/K3S.md`](docs/K3S.md).
 
-## Five verification levels
+## Six verification levels
 
 ### 1. Fast configuration check
 
@@ -203,6 +206,7 @@ This runs static policies, unit and behavior tests, shell syntax checks, and val
 - `latest` and implicit image tags;
 - known credentials published in earlier revisions;
 - destructive host-wide commands;
+- Cyrillic text in tracked UTF-8 repository files;
 - accidentally tracked `.env` or `.secrets/` files.
 
 ### 2. Registry manifest check
@@ -259,3 +263,21 @@ make check-backup-runtime
 This creates unique disposable local volumes containing nested text and binary files, an empty file, unusual permissions, and a safe relative symbolic link. It then performs a cold backup, offline verification, source-volume deletion, and a side-by-side restore under a different project name.
 
 The check compares bytes and relevant filesystem metadata, confirms rejection of a tampered snapshot and a non-empty target volume, and then removes only its own fixture resources. It does not start homelab applications or read deployment `.env` or `.secrets/`; the detailed recovery procedure is in [`docs/BACKUP.md`](docs/BACKUP.md).
+
+### 6. Isolated optional-profile runtime check
+
+```bash
+make check-optional-runtime
+```
+
+This creates a separate `homelab-optional-runtime-*` project, chooses a random free `NETDATA_PORT`, and starts only Netdata plus a direct whoami target for the disposable k6 container.
+
+The check verifies:
+
+- Netdata readiness through its local `/api/v1/info` endpoint;
+- a real `system.cpu` data sample collected from the Linux host;
+- the committed `config/k6/smoke.js` checks and thresholds against whoami;
+- absence of monitoring, tools, and IoT application services;
+- guaranteed scoped cleanup of the unique project and its volumes.
+
+The check downloads missing Netdata, whoami, and k6 layers and is intended only for Linux Docker Engine because Netdata uses host networking, the host PID namespace, Linux capabilities, and read-only host mounts. It does not read deployment `.env` or `.secrets/` and does not enroll the temporary agent in Netdata Cloud.
