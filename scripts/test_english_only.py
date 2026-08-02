@@ -40,21 +40,21 @@ class EnglishOnlyTests(unittest.TestCase):
     def test_reports_exact_locations_across_cyrillic_ranges(self) -> None:
         findings = self.checker.find_cyrillic(
             "mixed.txt",
-            "ASCII\nAРB\nextended: Ԁ\n",
+            "ASCII\nA\u0420B\nextended: \u0500\n",
         )
         self.assertEqual(
             [(item.path, item.line, item.column, item.character) for item in findings],
             [
-                ("mixed.txt", 2, 2, "Р"),
-                ("mixed.txt", 3, 11, "Ԁ"),
+                ("mixed.txt", 2, 2, "\u0420"),
+                ("mixed.txt", 3, 11, "\u0500"),
             ],
         )
 
     def test_scan_paths_skips_invalid_utf8_and_orders_findings(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "z.txt").write_text("Я\n", encoding="utf-8")
-            (root / "a.txt").write_text("AБ\n", encoding="utf-8")
+            (root / "z.txt").write_text("\u042F\n", encoding="utf-8")
+            (root / "a.txt").write_text("A\u0411\n", encoding="utf-8")
             (root / "binary.bin").write_bytes(b"\xff\xfe\x00")
 
             findings = self.checker.scan_paths(
