@@ -224,6 +224,8 @@ services:
     profiles: [netdata]
     restart: unless-stopped
     hostname: ${NETDATA_HOSTNAME:-homelab}
+    environment:
+      NETDATA_LISTENER_PORT: ${NETDATA_PORT:-19999}
     pid: host
     network_mode: host
     cap_add:
