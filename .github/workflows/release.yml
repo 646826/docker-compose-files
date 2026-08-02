@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Verify tag and publish GitHub release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out tagged revision
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag, version, and main ancestry
+        shell: bash
+        run: |
+          set -eu
+          test "$GITHUB_REF_NAME" = "v$(cat VERSION)"
+          test "$(wc -l < VERSION | tr -d ' ')" = "1"
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: Run release configuration verification
+        run: ./scripts/check.sh
+
+      - name: Create immutable release record
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --generate-notes \
+            --title "Docker Compose Homelab $GITHUB_REF_NAME"
