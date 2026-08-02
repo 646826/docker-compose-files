@@ -2,11 +2,12 @@ SHELL := /bin/sh
 COMPOSE ?= docker compose
 BACKUP_ROOT ?= backups
 DEFAULT_PROFILES := --profile monitoring --profile tools
-ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile netdata --profile test --profile uptime --profile dns --profile dashboard --profile auth --profile logs
+AUTH_PROFILE := $(if $(wildcard .secrets/authelia_configuration.yml),--profile auth,)
+ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile netdata --profile test --profile uptime --profile dns --profile dashboard $(AUTH_PROFILE) --profile logs
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init doctor check check-images scan-images sbom check-security check-runtime check-iot-runtime check-optional-runtime check-community-runtime backup verify-backup restore check-backup-runtime remote-init remote-backup remote-snapshots verify-remote-backup remote-retention check-remote-backup-runtime config core up full monitoring netdata tools iot uptime dashboard dns-preflight dns auth-init auth-check auth dozzle community k6 pull ps logs down
+.PHONY: help init doctor check check-images scan-images sbom check-security check-runtime check-iot-runtime check-optional-runtime check-community-runtime check-auth-runtime backup verify-backup restore check-backup-runtime remote-init remote-backup remote-snapshots verify-remote-backup remote-retention check-remote-backup-runtime config core up full monitoring netdata tools iot uptime dashboard dns-preflight dns auth-init auth-check auth dozzle community k6 pull ps logs down
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -45,6 +46,9 @@ check-optional-runtime: ## Verify Netdata host metrics and the committed k6 smok
 check-community-runtime: ## Verify Uptime Kuma, Homepage, and Dozzle behind authenticated Traefik routes
 	@sh ./scripts/check_community_runtime.sh
 
+check-auth-runtime: ## Verify the Authelia portal and Traefik ForwardAuth integration in isolation
+	@sh ./scripts/check_auth_runtime.sh
+
 backup: ## Create a verified cold snapshot of all established and community volumes
 	@# Compatibility engine: python3 scripts/backup.py create
 	@BACKUP_ROOT="$(BACKUP_ROOT)" python3 scripts/backup_community.py create
@@ -81,7 +85,7 @@ remote-retention: ## Apply the documented explicit remote retention and prune po
 check-remote-backup-runtime: ## Exercise a disposable encrypted restic backup and restore round trip
 	@sh ./scripts/check_remote_backup_runtime.sh
 
-config: init ## Print the fully rendered Compose model for every profile
+config: init ## Print the fully rendered Compose model for every locally configured profile
 	@$(COMPOSE) --env-file .env $(ALL_PROFILES) config
 
 core: init ## Start Traefik, Docker socket proxy, and whoami
@@ -152,14 +156,14 @@ k6: init ## Run the bounded k6 smoke test against K6_TARGET_URL
 	@$(COMPOSE) up -d whoami
 	@$(COMPOSE) --profile test run --rm k6
 
-pull: init ## Pull every explicitly selected image version
+pull: init ## Pull every locally configured image version
 	@$(COMPOSE) $(ALL_PROFILES) pull
 
-ps: init ## Show containers from every profile
+ps: init ## Show containers from every locally configured profile
 	@$(COMPOSE) $(ALL_PROFILES) ps
 
-logs: init ## Follow logs from every profile
+logs: init ## Follow logs from every locally configured profile
 	@$(COMPOSE) $(ALL_PROFILES) logs --tail=200 -f
 
-down: ## Stop this project and preserve all named volumes
+down: ## Stop every locally configured profile and preserve named volumes
 	@$(COMPOSE) $(ALL_PROFILES) down --remove-orphans
