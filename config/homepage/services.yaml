@@ -1,0 +1,52 @@
+- Monitoring:
+    - Grafana:
+        icon: grafana.png
+        href: http://grafana.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Dashboards and metrics
+        siteMonitor: http://grafana:3000/api/health
+    - Netdata:
+        icon: netdata.png
+        href: http://{{HOMEPAGE_VAR_HOST_ADDRESS}}:{{HOMEPAGE_VAR_NETDATA_PORT}}
+        description: Host observability
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: http://uptime.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Availability monitoring and notifications
+
+- Infrastructure:
+    - Traefik:
+        icon: traefik.png
+        href: http://traefik.{{HOMEPAGE_VAR_BASE_DOMAIN}}/dashboard/
+        description: Reverse proxy and routes
+    - Portainer:
+        icon: portainer.png
+        href: http://portainer.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Docker host administration
+    - AdGuard Home:
+        icon: adguard-home.png
+        href: http://dns.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Network-wide DNS filtering
+
+- Home Automation:
+    - openHAB:
+        icon: openhab.png
+        href: http://openhab.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Home automation
+    - Mosquitto:
+        icon: mqtt.png
+        href: http://{{HOMEPAGE_VAR_HOST_ADDRESS}}:{{HOMEPAGE_VAR_MQTT_PORT}}
+        description: Authenticated MQTT broker
+
+- Operations:
+    - Container Logs:
+        icon: dozzle.png
+        href: http://logs.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Read-only container logs
+    - Authentication:
+        icon: authelia.png
+        href: http://auth.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Single sign-on portal
+    - Repository:
+        icon: github.png
+        href: https://github.com/646826/docker-compose-files
+        description: Configuration, recovery docs, and releases
