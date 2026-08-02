@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -39,83 +39,3 @@ jobs:
           path: ci-validation.log
           if-no-files-found: error
           retention-days: 3
-
-  apply-community-platform-phase-1:
-    name: Apply community platform phase 1
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/community-homelab-platform'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Check out feature branch
-        uses: actions/checkout@v6
-        with:
-          ref: feat/community-homelab-platform
-
-      - name: Apply deterministic migration
-        run: python3 scripts/apply_platform_phase1.py
-
-      - name: Verify generated source syntax
-        run: |
-          set -eu
-          git diff --check
-          python3 -m py_compile scripts/doctor.py scripts/check_modules.py scripts/test_doctor.py
-
-      - name: Remove one-time transport and restore read-only CI
-        run: |
-          set -eu
-          rm -f scripts/apply_platform_phase1.py .github/workflows/apply-platform-phase1.yml
-          cat >.github/workflows/ci.yml <<'EOF'
-          name: CI
-
-          on:
-            push:
-              branches:
-                - main
-                - "feat/**"
-            pull_request:
-            workflow_dispatch:
-
-          permissions:
-            contents: read
-
-          concurrency:
-            group: ci-${{ github.workflow }}-${{ github.ref }}
-            cancel-in-progress: true
-
-          jobs:
-            validate:
-              name: Validate Compose project
-              runs-on: ubuntu-latest
-              timeout-minutes: 10
-
-              steps:
-                - name: Check out repository
-                  uses: actions/checkout@v6
-
-                - name: Validate configuration
-                  shell: bash
-                  run: |
-                    set -o pipefail
-                    ./scripts/check.sh 2>&1 | tee ci-validation.log
-
-                - name: Upload failure diagnostics
-                  if: failure()
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: ci-validation-log
-                    path: ci-validation.log
-                    if-no-files-found: error
-                    retention-days: 3
-          EOF
-          sed -i 's/^          //' .github/workflows/ci.yml
-
-      - name: Commit generated sources
-        run: |
-          set -eu
-          git diff --check
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A
-          git commit -m "refactor: modularize Compose and add doctor"
-          git push origin HEAD:feat/community-homelab-platform
