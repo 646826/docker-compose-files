@@ -207,7 +207,7 @@ def main() -> int:
     if "docs/BACKUP.md" not in migration:
         error("migration guide must link to docs/BACKUP.md")
     for fragment in (
-        "### 5. Изолированная backup/restore runtime-проверка",
+        "### 5. Isolated backup/restore runtime check",
         "make check-backup-runtime",
     ):
         if fragment not in readme:

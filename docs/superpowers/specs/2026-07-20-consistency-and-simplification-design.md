@@ -16,7 +16,7 @@ The current `main` branch has five independent operator checks:
 4. `make check-iot-runtime`;
 5. `make check-backup-runtime`.
 
-However, the README still presents a heading named `Четыре уровня проверки` and documents only the first four checks in that numbered section. The backup runtime command exists in the command table and Makefile, but the conceptual verification model is stale.
+However, the README still presents a heading named `Four verification levels` and documents only the first four checks in that numbered section. The backup runtime command exists in the command table and Makefile, but the conceptual verification model is stale.
 
 The Mosquitto password-generation contract has a more serious policy inconsistency:
 
@@ -193,19 +193,19 @@ The image checker remains manifest-only and does not validate or execute the pla
 The README heading changes from:
 
 ```text
-## Четыре уровня проверки
+## Four verification levels
 ```
 
 To:
 
 ```text
-## Пять уровней проверки
+## Five verification levels
 ```
 
 The first four numbered sections keep their current meaning and order. A fifth section is added:
 
 ```text
-### 5. Изолированная backup/restore runtime-проверка
+### 5. Isolated backup/restore runtime check
 ```
 
 It documents:
@@ -242,10 +242,10 @@ No other listed version changes.
 
 ## README policy ownership
 
-`scripts/check_runtime_policy.py` stops owning the global verification-count heading. It replaces the required fragment `## Четыре уровня проверки` with the runtime-specific heading:
+`scripts/check_runtime_policy.py` stops owning the global verification-count heading. It replaces the required fragment `## Four verification levels` with the runtime-specific heading:
 
 ```text
-### 3. Изолированная runtime-проверка default stack
+### 3. Isolated default-stack runtime check
 ```
 
 `scripts/check_iot_runtime_policy.py` continues to require `make check-iot-runtime` and its IoT-specific documentation.
@@ -253,13 +253,13 @@ No other listed version changes.
 `scripts/check_backup_policy.py` requires:
 
 ```text
-### 5. Изолированная backup/restore runtime-проверка
+### 5. Isolated backup/restore runtime check
 make check-backup-runtime
 ```
 
 `scripts/check_static.py` owns the global README model and requires:
 
-- `## Пять уровней проверки`;
+- `## Five verification levels`;
 - each of the five Make commands;
 - the backup helper version row.
 
@@ -441,7 +441,7 @@ The complete change is one non-runtime pull request. Reverting its squash commit
 
 The stage is complete only when all of the following are true on the same final head:
 
-1. README says `Пять уровней проверки` and documents all five commands in numbered sections.
+1. README says `Five verification levels` and documents all five commands in numbered sections.
 2. README lists `Backup helper Alpine` version `3.24.1`.
 3. `scripts/check_static.py` contains no rule requiring `mosquitto_passwd -U`.
 4. Operational bootstrap and IoT runtime scripts contain no `mosquitto_passwd -U` literal.

@@ -72,12 +72,12 @@ def main() -> int:
     readme = read_required("README.md")
     if readme:
         required_readme_fragments = (
-            "### 3. Изолированная runtime-проверка default stack",
+            "### 3. Isolated default-stack runtime check",
             "make check-runtime",
             "127.0.0.1",
             "tmpfs",
             "Telegraf",
-            "не читает рабочие `.env`/`.secrets/`",
+            "does not read deployment `.env` or `.secrets/`",
         )
         for fragment in required_readme_fragments:
             if fragment not in readme:

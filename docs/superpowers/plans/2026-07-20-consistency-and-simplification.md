@@ -261,29 +261,29 @@ git commit -m "fix: align Mosquitto image placeholder"
 - Modify: `README.md`
 
 **Interfaces:**
-- Produces the global README heading `## Пять уровней проверки`.
-- Produces the runtime-specific heading `### 3. Изолированная runtime-проверка default stack`.
-- Produces the backup-specific heading `### 5. Изолированная backup/restore runtime-проверка`.
+- Produces the global README heading `## Five verification levels`.
+- Produces the runtime-specific heading `### 3. Isolated default-stack runtime check`.
+- Produces the backup-specific heading `### 5. Isolated backup/restore runtime check`.
 
 - [ ] **Step 1: Make policies require the intended documentation before editing README**
 
 In `scripts/check_runtime_policy.py`, replace the global heading fragment:
 
 ```python
-            "## Четыре уровня проверки",
+            "## Four verification levels",
 ```
 
 with:
 
 ```python
-            "### 3. Изолированная runtime-проверка default stack",
+            "### 3. Isolated default-stack runtime check",
 ```
 
 In `scripts/check_backup_policy.py`, after the existing `docs/BACKUP.md` and migration checks, add:
 
 ```python
     for fragment in (
-        "### 5. Изолированная backup/restore runtime-проверка",
+        "### 5. Isolated backup/restore runtime check",
         "make check-backup-runtime",
     ):
         if fragment not in readme:
@@ -294,7 +294,7 @@ In `scripts/check_static.py`, extend the README block with:
 
 ```python
         required_verification_docs = (
-            "## Пять уровней проверки",
+            "## Five verification levels",
             "make check",
             "make check-images",
             "make check-runtime",
@@ -322,7 +322,7 @@ Expected failures:
 ```text
 README runtime documentation is missing: ### 3. ...
 README backup verification documentation is missing: ### 5. ...
-README verification model is missing: ## Пять уровней проверки
+README verification model is missing: ## Five verification levels
 README verification model is missing: | Backup helper Alpine | `3.24.1` |
 ```
 
@@ -341,27 +341,27 @@ Do not change any other version.
 Replace:
 
 ```markdown
-## Четыре уровня проверки
+## Four verification levels
 ```
 
 with:
 
 ```markdown
-## Пять уровней проверки
+## Five verification levels
 ```
 
 Append this section immediately after the current IoT runtime section:
 
 ```markdown
-### 5. Изолированная backup/restore runtime-проверка
+### 5. Isolated backup/restore runtime check
 
 ```bash
 make check-backup-runtime
 ```
 
-Создаёт уникальные одноразовые local volumes с вложенными текстовыми и бинарными файлами, пустым файлом, нестандартными permissions и безопасным относительным symlink. Затем выполняет cold backup, офлайн-проверку, удаление source volumes и side-by-side restore в другой project name.
+Creates unique disposable local volumes with nested text and binary files, an empty file, unusual permissions, and a safe relative symbolic link. It then performs a cold backup, offline verification, source-volume deletion, and a side-by-side restore under a different project name.
 
-Проверка сравнивает bytes и существенные filesystem metadata, подтверждает отказ для повреждённого snapshot и непустого target volume, а затем удаляет только собственные fixture-ресурсы. Она не запускает приложения homelab и не читает рабочие `.env` или `.secrets/`; подробная процедура восстановления находится в [`docs/BACKUP.md`](docs/BACKUP.md).
+The check compares bytes and relevant filesystem metadata, confirms rejection of a tampered snapshot and a non-empty target volume, and then removes only its own fixture resources. It does not start homelab applications or read deployment `.env` or `.secrets/`; the detailed recovery procedure is in [`docs/BACKUP.md`](docs/BACKUP.md).
 ```
 
 - [ ] **Step 5: Run all focused documentation policies and confirm GREEN**
