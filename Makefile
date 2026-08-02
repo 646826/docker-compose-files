@@ -6,12 +6,12 @@ ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile net
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init doctor check check-images check-runtime check-iot-runtime check-optional-runtime backup verify-backup restore check-backup-runtime remote-init remote-backup remote-snapshots verify-remote-backup remote-retention check-remote-backup-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
+.PHONY: help init doctor check check-images check-runtime check-iot-runtime check-optional-runtime backup verify-backup restore check-backup-runtime remote-init remote-backup remote-snapshots verify-remote-backup remote-retention check-remote-backup-runtime config core up full monitoring netdata tools iot uptime dashboard dns-preflight dns auth-init auth-check auth dozzle community k6 pull ps logs down
 
 help: ## Show available commands
-	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-init: ## Create .env and missing local secrets without overwriting existing values
+init: ## Create .env and missing established secrets without overwriting existing values
 	@./scripts/init.sh
 
 doctor: ## Diagnose Docker, Compose, ports, resources, and local configuration without changing the host
@@ -33,7 +33,7 @@ check-iot-runtime: ## Start the isolated IoT stack and verify MQTT auth/persiste
 check-optional-runtime: ## Verify Netdata host metrics and the committed k6 smoke test in isolation
 	@sh ./scripts/check_optional_runtime.sh
 
-backup: ## Create a verified cold snapshot of all existing project volumes
+backup: ## Create a verified cold snapshot of all established and community volumes
 	@# Compatibility engine: python3 scripts/backup.py create
 	@BACKUP_ROOT="$(BACKUP_ROOT)" python3 scripts/backup_community.py create
 
@@ -92,6 +92,49 @@ tools: init ## Start core plus Portainer
 
 iot: init ## Start core plus Mosquitto and openHAB
 	@$(COMPOSE) --profile iot up -d
+
+uptime: init ## Start Uptime Kuma behind the selected Traefik middleware
+	@$(COMPOSE) --profile uptime up -d uptime-kuma
+
+dashboard: init ## Start the static Homepage dashboard without Docker socket access
+	@$(COMPOSE) --profile dashboard up -d homepage
+
+dns-preflight: ## Check the configured DNS listener without changing the host
+	@python3 scripts/dns_preflight.py
+
+dns: init ## Run DNS preflight and start AdGuard Home explicitly
+	@python3 scripts/dns_preflight.py
+	@$(COMPOSE) --profile dns up -d adguard-home
+
+auth-init: init ## Create or refresh local Authelia configuration without rotating credentials
+	@python3 scripts/init_community.py
+
+auth-check: auth-init ## Validate generated Authelia configuration with the pinned image
+	@docker run --rm \
+		--volume "$(CURDIR)/.secrets/authelia_configuration.yml:/config/configuration.yml:ro" \
+		--volume "$(CURDIR)/.secrets/authelia_users.yml:/config/users_database.yml:ro" \
+		--volume "$(CURDIR)/.secrets/authelia_jwt_secret:/run/secrets/authelia_jwt_secret:ro" \
+		--volume "$(CURDIR)/.secrets/authelia_session_secret:/run/secrets/authelia_session_secret:ro" \
+		--volume "$(CURDIR)/.secrets/authelia_storage_encryption_key:/run/secrets/authelia_storage_encryption_key:ro" \
+		--env AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE=/run/secrets/authelia_jwt_secret \
+		--env AUTHELIA_SESSION_SECRET_FILE=/run/secrets/authelia_session_secret \
+		--env AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE=/run/secrets/authelia_storage_encryption_key \
+		authelia/authelia:4.39.20 \
+		authelia config validate --config /config/configuration.yml
+
+auth: auth-check ## Start the Authelia portal and ForwardAuth middleware
+	@$(COMPOSE) --profile auth up -d authelia
+
+dozzle: init ## Start protected read-only container log viewing through the socket proxy
+	@$(COMPOSE) --profile logs up -d dozzle
+
+community: init ## Start Uptime Kuma, Homepage, Dozzle, and selected authentication
+	@profiles="--profile uptime --profile dashboard --profile logs"; \
+	if grep -Eq '^AUTH_MIDDLEWARE=authelia@docker$$' .env; then \
+		$(MAKE) --no-print-directory auth-check; \
+		profiles="$$profiles --profile auth"; \
+	fi; \
+	$(COMPOSE) $$profiles up -d
 
 k6: init ## Run the bounded k6 smoke test against K6_TARGET_URL
 	@$(COMPOSE) up -d whoami
