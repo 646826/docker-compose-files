@@ -6,7 +6,7 @@ ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile net
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init doctor check check-images check-runtime check-iot-runtime check-optional-runtime backup verify-backup restore check-backup-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
+.PHONY: help init doctor check check-images check-runtime check-iot-runtime check-optional-runtime backup verify-backup restore check-backup-runtime remote-init remote-backup remote-snapshots verify-remote-backup remote-retention check-remote-backup-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -46,6 +46,25 @@ restore: ## Restore BACKUP into absent or empty volumes for the current project
 
 check-backup-runtime: ## Exercise a disposable backup/verify/restore round trip
 	@sh ./scripts/check_backup_runtime.sh
+
+remote-init: ## Initialize the configured encrypted restic repository
+	@python3 scripts/remote_backup.py init
+
+remote-backup: ## Upload verified BACKUP to the configured encrypted restic repository
+	@test -n "$(BACKUP)" || { echo "BACKUP is required" >&2; exit 2; }
+	@python3 scripts/remote_backup.py upload "$(BACKUP)"
+
+remote-snapshots: ## List remote restic snapshots created by this project
+	@python3 scripts/remote_backup.py snapshots
+
+verify-remote-backup: ## Verify repository structure and a bounded data sample
+	@python3 scripts/remote_backup.py check
+
+remote-retention: ## Apply the documented explicit remote retention and prune policy
+	@python3 scripts/remote_backup.py retention
+
+check-remote-backup-runtime: ## Exercise a disposable encrypted restic backup and restore round trip
+	@sh ./scripts/check_remote_backup_runtime.sh
 
 config: init ## Print the fully rendered Compose model for every profile
 	@$(COMPOSE) --env-file .env $(ALL_PROFILES) config
