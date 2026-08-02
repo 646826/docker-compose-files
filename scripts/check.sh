@@ -22,6 +22,7 @@ python3 scripts/check_runtime_policy.py
 python3 scripts/check_iot_runtime_policy.py
 python3 scripts/check_backup_policy.py
 python3 scripts/check_optional_runtime_policy.py
+python3 scripts/check_modules.py
 python3 scripts/test_init.py
 python3 scripts/test_check_images.py
 python3 scripts/test_runtime.py
@@ -30,6 +31,7 @@ python3 scripts/test_backup.py
 python3 scripts/test_english_only.py
 python3 scripts/check_english_only.py
 python3 scripts/test_optional_runtime.py
+python3 scripts/test_doctor.py
 
 for script in scripts/*.sh; do
   sh -n "$script"
