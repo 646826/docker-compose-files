@@ -27,6 +27,8 @@ python3 scripts/check_remote_backup_policy.py
 python3 scripts/check_optional_runtime_policy_modular.py
 python3 scripts/check_modules.py
 python3 scripts/test_init.py
+python3 scripts/test_init_community.py
+python3 scripts/test_dns_preflight.py
 python3 scripts/test_check_images.py
 # Compatibility owner: python3 scripts/test_runtime.py
 python3 scripts/test_runtime_modular.py
