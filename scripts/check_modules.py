@@ -20,6 +20,9 @@ MODULES = {
     "logs": {"dozzle"},
 }
 PINNED_IMAGES = {
+    "core": {
+        "traefik": "traefik:v3.7.10",
+    },
     "monitoring": {
         "telegraf": "telegraf:1.39.2-alpine",
     },
