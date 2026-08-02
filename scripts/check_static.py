@@ -423,7 +423,7 @@ def main() -> int:
         if "docs/BACKUP.md" not in readme or "make backup" not in readme:
             error("README must document the verified backup workflow")
         required_verification_docs = (
-            "## Пять уровней проверки",
+            "## Five verification levels",
             "make check",
             "make check-images",
             "make check-runtime",
