@@ -64,7 +64,7 @@ create_placeholder influxdb_password ci-password
 create_placeholder influxdb_token ci-token
 create_placeholder grafana_admin_password ci-password
 create_placeholder traefik_users 'ci:$2y$12$placeholder'
-create_placeholder mosquitto_passwords 'ci:$argon2id$v=19$m=19456,t=2,p=1$placeholder$placeholder'
+create_placeholder mosquitto_passwords 'ci:$7$220000$placeholder$placeholder'
 
 PROFILES="--profile monitoring --profile tools --profile iot --profile netdata --profile test"
 docker compose --env-file .env.example $PROFILES config --quiet
