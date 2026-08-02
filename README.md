@@ -197,6 +197,10 @@ make dns
 
 Review port `53`, `systemd-resolved`, router DHCP, upstream DNS, and rollback first. See [`docs/ADGUARD.md`](docs/ADGUARD.md).
 
+## Uptime Kuma image choice
+
+The maintained default is `louislam/uptime-kuma:2.4.0-slim`. It supports the normal SQLite-backed installation and standard monitor types while substantially reducing image size and attack surface. The slim image intentionally omits embedded MariaDB and embedded Chromium. Browser Engine monitors therefore need an external Chromium setup, and embedded MariaDB users must switch to the full pinned image through a local override after reviewing the additional dependencies and security scan results.
+
 ## TLS
 
 The default remains local HTTP. Public DNS, certificates, private keys, provider credentials, and ACME state are never enabled or committed automatically.
@@ -224,7 +228,7 @@ Keep certificate material under ignored `local/` paths or another operator-contr
 | Eclipse Mosquitto | `2.1.2` |
 | openHAB | `5.2.0` |
 | k6 | `2.1.0` |
-| Uptime Kuma | `2.4.0` |
+| Uptime Kuma | `2.4.0-slim` |
 | AdGuard Home | `0.107.76` |
 | Homepage | `1.13.1` |
 | Authelia | `4.39.20` |
