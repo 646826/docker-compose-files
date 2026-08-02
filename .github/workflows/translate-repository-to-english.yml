@@ -1,7 +1,7 @@
 name: Translate repository to English
 
 on:
-  push:
+  pull_request:
     branches:
       - main
     paths:
@@ -18,8 +18,10 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Check out repository
+      - name: Check out pull request branch
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Translate remaining content
         run: python3 scripts/translate_repository_to_english.py
@@ -45,4 +47,4 @@ jobs:
             docs/superpowers/plans/2026-07-20-consistency-and-simplification.md \
             docs/superpowers/specs/2026-07-20-consistency-and-simplification-design.md
           git commit -m "Translate repository content to English"
-          git push
+          git push origin "HEAD:${{ github.head_ref }}"
