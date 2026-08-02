@@ -18,6 +18,8 @@ from security import (
     image_slug,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 class SecurityExceptionTests(unittest.TestCase):
     def test_active_exceptions_require_exact_image_id_owner_reason_and_future_date(self) -> None:
@@ -157,6 +159,16 @@ class TrivyCommandTests(unittest.TestCase):
             )
         self.assertIn("cyclonedx", command)
         self.assertNotIn("--ignore-unfixed", command)
+
+    def test_trivy_helper_is_in_multiarch_image_inventory(self) -> None:
+        source = (ROOT / "scripts/check_images_community.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            'TRIVY_IMAGE = "ghcr.io/aquasecurity/trivy:0.70.0"',
+            source,
+        )
+        self.assertIn("images.add(TRIVY_IMAGE)", source)
 
 
 if __name__ == "__main__":
