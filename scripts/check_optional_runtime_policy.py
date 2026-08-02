@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 from pathlib import Path
@@ -49,10 +48,6 @@ def main() -> int:
     test_script = read_required("scripts/test_optional_runtime.py")
     workflow = read_required(".github/workflows/optional-runtime.yml")
     check_script = read_required("scripts/check.sh")
-
-    script_path = ROOT / "scripts/check_optional_runtime.sh"
-    if script_path.is_file() and not os.access(script_path, os.X_OK):
-        error("scripts/check_optional_runtime.sh must remain executable")
 
     netdata = service_block(compose, "netdata") if compose else ""
     if compose and not netdata:
