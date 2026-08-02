@@ -34,15 +34,18 @@ check-optional-runtime: ## Verify Netdata host metrics and the committed k6 smok
 	@sh ./scripts/check_optional_runtime.sh
 
 backup: ## Create a verified cold snapshot of all existing project volumes
-	@BACKUP_ROOT="$(BACKUP_ROOT)" python3 scripts/backup.py create
+	@# Compatibility engine: python3 scripts/backup.py create
+	@BACKUP_ROOT="$(BACKUP_ROOT)" python3 scripts/backup_community.py create
 
 verify-backup: ## Verify BACKUP offline without touching Docker
 	@test -n "$(BACKUP)" || { echo "BACKUP is required" >&2; exit 2; }
-	@python3 scripts/backup.py verify "$(BACKUP)"
+	@# Compatibility engine: python3 scripts/backup.py verify "$(BACKUP)"
+	@python3 scripts/backup_community.py verify "$(BACKUP)"
 
 restore: ## Restore BACKUP into absent or empty volumes for the current project
 	@test -n "$(BACKUP)" || { echo "BACKUP is required" >&2; exit 2; }
-	@python3 scripts/backup.py restore "$(BACKUP)"
+	@# Compatibility engine: python3 scripts/backup.py restore "$(BACKUP)"
+	@python3 scripts/backup_community.py restore "$(BACKUP)"
 
 check-backup-runtime: ## Exercise a disposable backup/verify/restore round trip
 	@sh ./scripts/check_backup_runtime.sh
