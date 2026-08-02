@@ -6,7 +6,7 @@ ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile net
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init doctor check check-images check-runtime check-iot-runtime check-optional-runtime check-community-runtime backup verify-backup restore check-backup-runtime remote-init remote-backup remote-snapshots verify-remote-backup remote-retention check-remote-backup-runtime config core up full monitoring netdata tools iot uptime dashboard dns-preflight dns auth-init auth-check auth dozzle community k6 pull ps logs down
+.PHONY: help init doctor check check-images scan-images sbom check-security check-runtime check-iot-runtime check-optional-runtime check-community-runtime backup verify-backup restore check-backup-runtime remote-init remote-backup remote-snapshots verify-remote-backup remote-retention check-remote-backup-runtime config core up full monitoring netdata tools iot uptime dashboard dns-preflight dns auth-init auth-check auth dozzle community k6 pull ps logs down
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -23,6 +23,15 @@ check: ## Validate static files, bootstrap behavior, shell scripts, and the full
 check-images: ## Verify pinned image tags and amd64/arm64 registry manifests
 	@python3 scripts/check_images.py
 	@python3 scripts/check_images_community.py
+
+scan-images: ## Generate JSON vulnerability reports for every maintained image
+	@python3 scripts/security.py scan
+
+sbom: ## Generate one CycloneDX SBOM for every maintained image
+	@python3 scripts/security.py sbom
+
+check-security: ## Fail on unexcepted fixable CRITICAL image vulnerabilities
+	@python3 scripts/security.py check
 
 check-runtime: ## Pull missing layers, start the isolated default stack, and run runtime assertions
 	@./scripts/check_runtime.sh
