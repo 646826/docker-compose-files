@@ -107,11 +107,12 @@ Inside the Compose network, openHAB must use the internal MQTT broker address `m
 | `make auth-init` | create missing local Authelia files without rotation |
 | `make auth-check` | validate Authelia configuration with the pinned image |
 | `make auth` | validate and start Authelia |
+| `make check-auth-runtime` | verify an isolated Authelia portal and Traefik ForwardAuth redirect |
 | `make k6` | run the committed bounded smoke test |
-| `make pull` | pull every selected image version |
-| `make ps` | show containers from every profile |
-| `make logs` | follow logs |
-| `make down` | stop all profiles while preserving volumes |
+| `make pull` | pull every locally configured image version |
+| `make ps` | show containers from every locally configured profile |
+| `make logs` | follow logs from every locally configured profile |
+| `make down` | stop locally configured profiles while preserving volumes |
 
 ## Authentication
 
@@ -128,9 +129,12 @@ Enable Authelia only after validation:
 ```bash
 make auth-init
 make auth-check
+make check-auth-runtime
 # Set AUTH_MIDDLEWARE=authelia@docker in .env
 make community
 ```
+
+`make check-auth-runtime` creates a disposable normal domain and credentials, validates the generated configuration with the pinned Authelia image, starts core + Homepage + Authelia, verifies the portal through Traefik, and proves that the protected Homepage route redirects to Authelia. It does not read deployment `.env` or `.secrets/`.
 
 Recovery and rollback are documented in [`docs/AUTHELIA.md`](docs/AUTHELIA.md). To roll back, restore `AUTH_MIDDLEWARE=local-auth@docker`, restart affected profiles, verify access, and then stop Authelia.
 
@@ -220,7 +224,7 @@ Keep certificate material under ignored `local/` paths or another operator-contr
 | Eclipse Mosquitto | `2.1.2` |
 | openHAB | `5.2.0` |
 | k6 | `2.1.0` |
-| Uptime Kuma | `2.3.2` |
+| Uptime Kuma | `2.4.0` |
 | AdGuard Home | `0.107.76` |
 | Homepage | `1.13.1` |
 | Authelia | `4.39.20` |
@@ -296,11 +300,12 @@ Chooses a random `NETDATA_PORT`, starts Netdata and the direct k6 target, verifi
 
 ```bash
 make check-community-runtime
+make check-auth-runtime
 make check-remote-backup-runtime
 make check-security
 ```
 
-Community runtime verifies authenticated Uptime Kuma, Homepage, and Dozzle routes. Remote runtime proves restic init/backup/check/restore and wrong-password rejection. Security CI generates SBOMs and enforces the fixable-CRITICAL policy.
+Community runtime verifies authenticated Uptime Kuma, Homepage, and Dozzle routes. Auth runtime validates a real Authelia portal and Traefik ForwardAuth redirect. Remote runtime proves restic init/backup/check/restore and wrong-password rejection. Security CI generates SBOMs and enforces the fixable-CRITICAL policy.
 
 ## Further documentation
 
