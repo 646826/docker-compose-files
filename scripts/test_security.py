@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from datetime import date
@@ -148,6 +149,25 @@ class TrivyCommandTests(unittest.TestCase):
         self.assertNotIn("setup-trivy", rendered)
         self.assertIn("--ignore-unfixed", command)
         self.assertEqual(command[-1], "example/image:1.0.0")
+
+    def test_command_runs_as_calling_user_with_user_owned_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "report.json"
+            command = build_trivy_command(
+                "scan",
+                image="example/image:1.0.0",
+                output=output,
+            )
+        self.assertIn("--user", command)
+        self.assertIn(f"{os.getuid()}:{os.getgid()}", command)
+        cache_mounts = [
+            command[index + 1]
+            for index, argument in enumerate(command[:-1])
+            if argument == "--volume" and command[index + 1].endswith(":/cache")
+        ]
+        self.assertEqual(len(cache_mounts), 1)
+        self.assertIn("--cache-dir", command)
+        self.assertIn("/cache", command)
 
     def test_sbom_uses_cyclonedx(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
