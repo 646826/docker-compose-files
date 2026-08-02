@@ -1,0 +1,22 @@
+title: Homelab
+language: en
+color: slate
+theme: dark
+headerStyle: clean
+statusStyle: dot
+hideVersion: true
+showStats: false
+useEqualHeights: true
+layout:
+  Monitoring:
+    style: row
+    columns: 3
+  Infrastructure:
+    style: row
+    columns: 3
+  Home Automation:
+    style: row
+    columns: 2
+  Operations:
+    style: row
+    columns: 3
