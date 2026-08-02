@@ -216,7 +216,7 @@ class OptionalRuntimeHarnessTests(unittest.TestCase):
             }
         )
         return subprocess.run(
-            [str(self.fixture / "scripts" / "check_optional_runtime.sh")],
+            ["sh", str(self.fixture / "scripts" / "check_optional_runtime.sh")],
             cwd=self.fixture,
             env=environment,
             check=False,
