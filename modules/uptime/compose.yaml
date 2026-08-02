@@ -1,0 +1,26 @@
+x-module-owner: uptime
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:2.3.2
+    profiles: [uptime]
+    restart: unless-stopped
+    volumes:
+      - uptime_kuma_data:/app/data
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.uptime.rule: Host(`uptime.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.uptime.entrypoints: web
+      traefik.http.routers.uptime.middlewares: ${AUTH_MIDDLEWARE:-local-auth@docker}
+      traefik.http.services.uptime.loadbalancer.server.port: "3001"
