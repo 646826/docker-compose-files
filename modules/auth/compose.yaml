@@ -1,0 +1,22 @@
+x-module-owner: auth
+
+services:
+  authelia:
+    image: authelia/authelia:4.39.19
+    profiles: [auth]
+    restart: unless-stopped
+    volumes:
+      - authelia_data:/config
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.authelia.rule: Host(`auth.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.authelia.entrypoints: web
+      traefik.http.services.authelia.loadbalancer.server.port: "9091"
+      traefik.http.middlewares.authelia.forwardauth.address: http://authelia:9091/api/authz/forward-auth
+      traefik.http.middlewares.authelia.forwardauth.trustForwardHeader: "true"
+      traefik.http.middlewares.authelia.forwardauth.authResponseHeaders: Remote-User,Remote-Groups,Remote-Email,Remote-Name
