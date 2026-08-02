@@ -266,7 +266,7 @@ Uses Docker Buildx raw manifests to verify every service and helper image publis
 make check-runtime
 ```
 
-Starts a unique core + monitoring + Portainer project on a random loopback HTTP port and verifies authentication, health, provisioning, real Telegraf data, and cleanup.
+Starts a unique core + monitoring + Portainer project on a random `127.0.0.1` HTTP port. Stateful application data is replaced with disposable `tmpfs` mounts where the harness defines them. It verifies authentication, health, Grafana provisioning, real Telegraf data, and scoped cleanup. The harness does not read deployment `.env` or `.secrets/`.
 
 ### 4. Isolated IoT runtime check
 
