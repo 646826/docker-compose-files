@@ -82,7 +82,10 @@ identity = " ".join(
 )
 if "system.cpu" not in identity:
     raise SystemExit(1)
-data = document.get("data")
+result = document.get("result")
+if not isinstance(result, dict):
+    raise SystemExit(1)
+data = result.get("data")
 if not isinstance(data, list) or not data:
     raise SystemExit(1)
 PY
@@ -123,7 +126,7 @@ wait_for_cpu_metrics() {
       --show-error \
       --max-time 5 \
       --output "$RESPONSE_BODY" \
-      "http://127.0.0.1:$NETDATA_PORT/api/v1/data?chart=system.cpu&points=1&after=-10&options=jsonwrap" \
+      "http://127.0.0.1:$NETDATA_PORT/api/v1/data?chart=system.cpu&points=1&after=-10&format=json&options=jsonwrap" \
       2>/dev/null && valid_cpu_response; then
       printf 'OK: Netdata collected a system.cpu sample\n'
       return 0
