@@ -17,11 +17,11 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 cd "$ROOT"
-python3 scripts/check_static.py
+python3 scripts/check_static_modular.py
 python3 scripts/check_runtime_policy.py
-python3 scripts/check_iot_runtime_policy.py
+python3 scripts/check_iot_runtime_policy_modular.py
 python3 scripts/check_backup_policy.py
-python3 scripts/check_optional_runtime_policy.py
+python3 scripts/check_optional_runtime_policy_modular.py
 python3 scripts/check_modules.py
 python3 scripts/test_init.py
 python3 scripts/test_check_images.py
@@ -69,7 +69,7 @@ create_placeholder grafana_admin_password ci-password
 create_placeholder traefik_users 'ci:$2y$12$placeholder'
 create_placeholder mosquitto_passwords 'ci:$7$220000$placeholder$placeholder'
 
-PROFILES="--profile monitoring --profile tools --profile iot --profile netdata --profile test"
+PROFILES="--profile monitoring --profile tools --profile iot --profile netdata --profile test --profile uptime --profile dns --profile dashboard --profile auth --profile logs"
 docker compose --env-file .env.example $PROFILES config --quiet
 
 for image in $(docker compose --env-file .env.example $PROFILES config --images); do
