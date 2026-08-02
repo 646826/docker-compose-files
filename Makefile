@@ -6,7 +6,7 @@ ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile net
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init doctor check check-images check-runtime check-iot-runtime check-optional-runtime backup verify-backup restore check-backup-runtime remote-init remote-backup remote-snapshots verify-remote-backup remote-retention check-remote-backup-runtime config core up full monitoring netdata tools iot uptime dashboard dns-preflight dns auth-init auth-check auth dozzle community k6 pull ps logs down
+.PHONY: help init doctor check check-images check-runtime check-iot-runtime check-optional-runtime check-community-runtime backup verify-backup restore check-backup-runtime remote-init remote-backup remote-snapshots verify-remote-backup remote-retention check-remote-backup-runtime config core up full monitoring netdata tools iot uptime dashboard dns-preflight dns auth-init auth-check auth dozzle community k6 pull ps logs down
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -32,6 +32,9 @@ check-iot-runtime: ## Start the isolated IoT stack and verify MQTT auth/persiste
 
 check-optional-runtime: ## Verify Netdata host metrics and the committed k6 smoke test in isolation
 	@sh ./scripts/check_optional_runtime.sh
+
+check-community-runtime: ## Verify Uptime Kuma, Homepage, and Dozzle behind authenticated Traefik routes
+	@sh ./scripts/check_community_runtime.sh
 
 backup: ## Create a verified cold snapshot of all established and community volumes
 	@# Compatibility engine: python3 scripts/backup.py create
