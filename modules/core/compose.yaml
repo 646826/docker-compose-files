@@ -29,7 +29,7 @@ services:
       start_period: 5s
 
   traefik:
-    image: traefik:v3.7.8
+    image: traefik:v3.7.10
     restart: unless-stopped
     depends_on:
       docker-socket-proxy:
