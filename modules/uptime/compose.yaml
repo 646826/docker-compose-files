@@ -2,7 +2,7 @@ x-module-owner: uptime
 
 services:
   uptime-kuma:
-    image: louislam/uptime-kuma:2.4.0
+    image: louislam/uptime-kuma:2.4.0-slim
     profiles: [uptime]
     restart: unless-stopped
     volumes:
