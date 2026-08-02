@@ -18,13 +18,24 @@
       "datasourceTemplate": "docker"
     },
     {
-      "description": "Update the backup helper container image used by scripts/backup.py",
+      "description": "Update Python-declared helper container images",
       "customType": "regex",
       "managerFilePatterns": [
-        "/^scripts\\/backup\\.py$/"
+        "/^scripts\\/(?:backup|remote_backup|check_images_community)\\.py$/"
       ],
       "matchStrings": [
-        "HELPER_IMAGE\\s*=\\s*\"(?<depName>[^:\\s\"]+):(?<currentValue>[^\\s\"]+)\""
+        "(?:HELPER_IMAGE|RESTIC_IMAGE)\\s*=\\s*\"(?<depName>[^:\\s\"]+):(?<currentValue>[^\\s\"]+)\""
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Update shell-declared runtime helper images",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts\\/check_[a-z0-9_]+_runtime\\.sh$/"
+      ],
+      "matchStrings": [
+        "(?:RESTIC_IMAGE|TRIVY_IMAGE)=(?<depName>[^:\\s]+):(?<currentValue>[^\\s]+)"
       ],
       "datasourceTemplate": "docker"
     }
