@@ -69,6 +69,7 @@ def main() -> int:
             "test_harness_verifies_portal_and_forwardauth_redirect",
             "test_harness_is_isolated_and_cleanup_is_scoped",
             "test_authelia_has_an_explicit_bounded_healthcheck",
+            "test_general_commands_include_auth_only_after_initialization",
         ):
             if name not in tests:
                 ERRORS.append(f"auth runtime regression test is missing: {name}")
@@ -82,6 +83,14 @@ def main() -> int:
         ):
             if fragment not in module:
                 ERRORS.append(f"Authelia module runtime contract is missing: {fragment}")
+
+    if makefile:
+        for fragment in (
+            "AUTH_PROFILE := $(if $(wildcard .secrets/authelia_configuration.yml),--profile auth,)",
+            "$(AUTH_PROFILE)",
+        ):
+            if fragment not in makefile:
+                ERRORS.append(f"Makefile optional Auth profile contract is missing: {fragment}")
 
     block = target_block(makefile, "check-auth-runtime")
     if not block:
