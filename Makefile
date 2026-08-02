@@ -22,6 +22,7 @@ check: ## Validate static files, bootstrap behavior, shell scripts, and the full
 
 check-images: ## Verify pinned image tags and amd64/arm64 registry manifests
 	@python3 scripts/check_images.py
+	@python3 scripts/check_images_community.py
 
 check-runtime: ## Pull missing layers, start the isolated default stack, and run runtime assertions
 	@./scripts/check_runtime.sh
