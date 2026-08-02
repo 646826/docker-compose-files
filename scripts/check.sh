@@ -27,12 +27,15 @@ python3 scripts/check_optional_runtime_policy_modular.py
 python3 scripts/check_modules.py
 python3 scripts/test_init.py
 python3 scripts/test_check_images.py
-python3 scripts/test_runtime.py
-python3 scripts/test_iot_runtime.py
+# Compatibility owner: python3 scripts/test_runtime.py
+python3 scripts/test_runtime_modular.py
+# Compatibility owner: python3 scripts/test_iot_runtime.py
+python3 scripts/test_iot_runtime_modular.py
 python3 scripts/test_backup.py
 python3 scripts/test_english_only.py
 python3 scripts/check_english_only.py
-python3 scripts/test_optional_runtime.py
+# Compatibility owner: python3 scripts/test_optional_runtime.py
+python3 scripts/test_optional_runtime_modular.py
 python3 scripts/test_doctor.py
 
 for script in scripts/*.sh; do
