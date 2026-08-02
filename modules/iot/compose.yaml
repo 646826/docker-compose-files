@@ -1,0 +1,57 @@
+x-module-owner: iot
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.1.2-alpine
+    profiles: [iot]
+    restart: unless-stopped
+    entrypoint:
+      - /bin/ash
+      - -euc
+      - |
+        cp /run/secrets/mosquitto_passwords /run/mosquitto/passwords
+        chown 1883:1883 /run/mosquitto/passwords
+        chmod 0600 /run/mosquitto/passwords
+        exec /docker-entrypoint.sh /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf
+    ports:
+      - "${MQTT_HOST_IP:-0.0.0.0}:${MQTT_PORT:-1883}:1883"
+    secrets:
+      - mosquitto_passwords
+    volumes:
+      - ../../config/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+    tmpfs:
+      - /run/mosquitto:mode=0700,uid=1883,gid=1883
+    networks:
+      - iot
+    security_opt:
+      - no-new-privileges:true
+
+  openhab:
+    image: openhab/openhab:5.2.0
+    profiles: [iot]
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      CRYPTO_POLICY: unlimited
+      OPENHAB_HTTP_PORT: "8080"
+      OPENHAB_HTTPS_PORT: "8443"
+      USER_ID: ${OPENHAB_UID:-9001}
+      GROUP_ID: ${OPENHAB_GID:-9001}
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      - openhab_addons:/openhab/addons
+      - openhab_conf:/openhab/conf
+      - openhab_userdata:/openhab/userdata
+    networks:
+      - proxy
+      - iot
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.openhab.rule: Host(`openhab.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.openhab.entrypoints: web
+      traefik.http.services.openhab.loadbalancer.server.port: "8080"
