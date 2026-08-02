@@ -6,6 +6,9 @@ WORKDIR=
 PROJECT_NAME=
 HTTP_PORT=
 BASE_DOMAIN=community-runtime.localhost
+UPTIME_HOST="uptime.$BASE_DOMAIN"
+HOMEPAGE_HOST="home.$BASE_DOMAIN"
+DOZZLE_HOST="logs.$BASE_DOMAIN"
 RESPONSE_BODY=
 HTPASSWD_IMAGE=
 
@@ -78,13 +81,16 @@ wait_http() {
   host=$2
   config=$3
   expected=$4
+  expected_pattern=$5
   attempt=1
   code=000
   while [ "$attempt" -le 90 ]; do
     if code=$(http_request "$host" "$config" 2>/dev/null); then
       if [ "$code" = "$expected" ]; then
-        printf 'OK: %s\n' "$label"
-        return 0
+        if [ -z "$expected_pattern" ] || grep -Fq "$expected_pattern" "$RESPONSE_BODY"; then
+          printf 'OK: %s\n' "$label"
+          return 0
+        fi
       fi
     else
       code=000
@@ -93,6 +99,9 @@ wait_http() {
     sleep 2
   done
   printf 'FAILED: %s returned HTTP %s, expected %s\n' "$label" "$code" "$expected" >&2
+  if [ -n "$expected_pattern" ]; then
+    printf 'Expected response text: %s\n' "$expected_pattern" >&2
+  fi
   head -c 500 "$RESPONSE_BODY" >&2 || true
   printf '\n' >&2
   return 1
@@ -206,13 +215,11 @@ if [ "$actual_services" != "$expected_services" ]; then
   exit 1
 fi
 
-for host in \
-  uptime.community-runtime.localhost \
-  home.community-runtime.localhost \
-  logs.community-runtime.localhost
-do
-  wait_http "$host rejects anonymous requests" "$host" - 401
-  wait_http "$host accepts generated Basic Auth" "$host" "$WORKDIR/auth.curl" 200
-done
+wait_http "uptime rejects anonymous requests" "$UPTIME_HOST" - 401 ""
+wait_http "uptime accepts generated Basic Auth" "$UPTIME_HOST" "$WORKDIR/auth.curl" 302 "/setup-database"
+wait_http "Homepage rejects anonymous requests" "$HOMEPAGE_HOST" - 401 ""
+wait_http "Homepage accepts generated Basic Auth" "$HOMEPAGE_HOST" "$WORKDIR/auth.curl" 200 ""
+wait_http "Dozzle rejects anonymous requests" "$DOZZLE_HOST" - 401 ""
+wait_http "Dozzle accepts generated Basic Auth" "$DOZZLE_HOST" "$WORKDIR/auth.curl" 200 ""
 
 printf 'Community runtime smoke test passed\n'
