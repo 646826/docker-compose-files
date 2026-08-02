@@ -42,6 +42,8 @@ class EnvironmentParsingTests(unittest.TestCase):
 
 class DockerCommandTests(unittest.TestCase):
     def test_upload_uses_verified_snapshot_and_file_backed_credentials(self) -> None:
+        password_value = "ultra-confidential-password-value"
+        provider_value = "provider-key-must-not-appear"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             snapshot = root / "snapshot"
@@ -50,8 +52,11 @@ class DockerCommandTests(unittest.TestCase):
             password = root / "password"
             environment = root / "environment"
             repository.write_text("s3:https://example.invalid/bucket\n", encoding="utf-8")
-            password.write_text("secret\n", encoding="utf-8")
-            environment.write_text("AWS_ACCESS_KEY_ID=not-in-command\n", encoding="utf-8")
+            password.write_text(f"{password_value}\n", encoding="utf-8")
+            environment.write_text(
+                f"AWS_ACCESS_KEY_ID={provider_value}\n",
+                encoding="utf-8",
+            )
 
             command = build_docker_command(
                 "upload",
@@ -64,8 +69,8 @@ class DockerCommandTests(unittest.TestCase):
 
         rendered = " ".join(command)
         self.assertIn("--env-file", command)
-        self.assertNotIn("not-in-command", rendered)
-        self.assertNotIn("secret", rendered)
+        self.assertNotIn(provider_value, rendered)
+        self.assertNotIn(password_value, rendered)
         self.assertIn(f"{snapshot.resolve()}:/snapshot:ro", command)
         self.assertEqual(command[-6:], [
             "backup",
