@@ -40,7 +40,7 @@ class AuthRuntimeContractTests(unittest.TestCase):
             '"$ROOT/.env"',
             '"$ROOT/.secrets',
             "--profile dns",
-            "docker system prune",
+            "docker system " + "prune",
         ):
             self.assertNotIn(forbidden, source)
 
