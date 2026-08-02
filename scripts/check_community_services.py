@@ -48,6 +48,7 @@ def main() -> int:
     makefile = read_required("Makefile")
     check = read_required("scripts/check.sh")
     runtime = read_required("scripts/check_community_runtime.sh")
+    runtime_tests = read_required("scripts/test_community_runtime.py")
     workflow = read_required(".github/workflows/community-runtime.yml")
 
     require(
@@ -142,6 +143,7 @@ def main() -> int:
     if check:
         for command in (
             "python3 scripts/check_community_services.py",
+            "python3 scripts/test_community_runtime.py",
         ):
             if command not in check:
                 ERRORS.append(f"fast checks must run: {command}")
@@ -154,14 +156,25 @@ def main() -> int:
                 "--profile uptime",
                 "--profile dashboard",
                 "--profile logs",
-                "uptime.community-runtime.localhost",
-                "home.community-runtime.localhost",
-                "logs.community-runtime.localhost",
+                "expected_pattern=$5",
+                'grep -Fq "$expected_pattern" "$RESPONSE_BODY"',
+                'wait_http "uptime accepts generated Basic Auth" "$UPTIME_HOST" "$WORKDIR/auth.curl" 302 "/setup-database"',
+                'wait_http "Homepage accepts generated Basic Auth" "$HOMEPAGE_HOST" "$WORKDIR/auth.curl" 200 ""',
+                'wait_http "Dozzle accepts generated Basic Auth" "$DOZZLE_HOST" "$WORKDIR/auth.curl" 200 ""',
                 "down --volumes --remove-orphans --timeout 30",
                 "Community runtime smoke test passed",
             ),
         )
         forbid(runtime, "community runtime harness", ("--profile dns", "--profile auth"))
+
+    if runtime_tests:
+        for name in (
+            "test_uptime_kuma_first_run_redirect_is_accepted",
+            "test_homepage_and_dozzle_still_require_success_responses",
+            "test_wait_http_validates_an_optional_response_pattern",
+        ):
+            if name not in runtime_tests:
+                ERRORS.append(f"community runtime regression test is missing: {name}")
 
     if workflow:
         require(
