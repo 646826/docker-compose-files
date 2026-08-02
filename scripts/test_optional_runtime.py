@@ -131,7 +131,7 @@ case "$url" in
     printf '%s\n' '{"version":"test"}' >"$output"
     ;;
   *chart=system.cpu*)
-    printf '%s\n' '{"id":"system.cpu","data":[[1,2.5]]}' >"$output"
+    printf '%s\n' '{"id":"chart://hosts:test/instance:system.cpu/dimensions:*/after:-10","name":"chart://hosts:test/instance:system.cpu","data":[[1,2.5]]}' >"$output"
     ;;
   *)
     printf 'unexpected fake curl URL: %s\n' "$url" >&2
