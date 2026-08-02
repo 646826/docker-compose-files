@@ -22,6 +22,7 @@ python3 scripts/check_runtime_policy.py
 # Compatibility owner: python3 scripts/check_iot_runtime_policy.py
 python3 scripts/check_iot_runtime_policy_modular.py
 python3 scripts/check_backup_policy.py
+python3 scripts/check_remote_backup_policy.py
 # Compatibility owner: python3 scripts/check_optional_runtime_policy.py
 python3 scripts/check_optional_runtime_policy_modular.py
 python3 scripts/check_modules.py
