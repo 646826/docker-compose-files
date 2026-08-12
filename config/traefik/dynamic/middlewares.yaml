@@ -6,10 +6,6 @@ http:
         frameDeny: true
         contentTypeNosniff: true
         referrerPolicy: strict-origin-when-cross-origin
-        permissionsPolicy:
-          camera: "()"
-          microphone: "()"
-          geolocation: "()"
         customResponseHeaders:
           X-Robots-Tag: noindex, nofollow
     ratelimit:
