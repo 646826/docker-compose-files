@@ -392,7 +392,6 @@ services:
     depends_on:
       docker-socket-proxy:
         condition: service_healthy
-        restart: true
     environment:
       DOZZLE_REMOTE_HOST: tcp://docker-socket-proxy:2375
       DOZZLE_LEVEL: ${DOZZLE_LOG_LEVEL:-info}
@@ -437,7 +436,6 @@ services:
     depends_on:
       docker-socket-proxy:
         condition: service_healthy
-        restart: true
     environment:
       TZ: ${TZ:-Etc/UTC}
       LOG_LEVEL: ${DIUN_LOG_LEVEL:-info}
