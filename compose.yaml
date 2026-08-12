@@ -371,6 +371,10 @@ services:
     tmpfs:
       - /tmp
       - /app/.next/cache
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
@@ -403,6 +407,10 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     healthcheck:
       test: ["CMD", "/dozzle", "healthcheck"]
       interval: 10s
@@ -449,6 +457,10 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     healthcheck:
       test: ["CMD", "/diun", "healthcheck"]
       interval: 10s
@@ -477,6 +489,10 @@ services:
       - ALL
     cap_add:
       - NET_BIND_SERVICE
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
