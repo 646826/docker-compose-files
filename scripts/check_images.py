@@ -27,6 +27,12 @@ PROFILES = (
     "netdata",
     "--profile",
     "test",
+    "--profile",
+    "apps",
+    "--profile",
+    "dns",
+    "--profile",
+    "updates",
 )
 HELPER_KEYS = ("HTPASSWD_IMAGE", "MOSQUITTO_IMAGE")
 BACKUP_HELPER_IMAGE = "alpine:3.24.1"

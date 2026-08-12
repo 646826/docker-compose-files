@@ -2,11 +2,11 @@ SHELL := /bin/sh
 COMPOSE ?= docker compose
 BACKUP_ROOT ?= backups
 DEFAULT_PROFILES := --profile monitoring --profile tools
-ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile netdata --profile test
+ALL_PROFILES := --profile monitoring --profile tools --profile iot --profile netdata --profile test --profile apps --profile dns --profile updates
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init check check-images check-runtime check-iot-runtime check-optional-runtime backup verify-backup restore check-backup-runtime config core up full monitoring netdata tools iot k6 pull ps logs down
+.PHONY: help init check check-images check-runtime check-iot-runtime check-optional-runtime backup verify-backup restore check-backup-runtime config core up full monitoring netdata tools iot apps dns updates k6 pull ps logs down
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target>\n\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -52,8 +52,8 @@ core: init ## Start Traefik, Docker socket proxy, and whoami
 up: init ## Start the legacy-equivalent stack: core, monitoring, and Portainer
 	@$(COMPOSE) $(DEFAULT_PROFILES) up -d
 
-full: init ## Start every persistent service, including Netdata, Mosquitto, and openHAB
-	@$(COMPOSE) --profile monitoring --profile tools --profile iot --profile netdata up -d
+full: init ## Start every persistent service, including apps, DNS, and update checks
+	@$(COMPOSE) --profile monitoring --profile tools --profile iot --profile netdata --profile apps --profile dns --profile updates up -d
 
 monitoring: init ## Start core plus InfluxDB, Telegraf, and Grafana
 	@$(COMPOSE) --profile monitoring up -d
@@ -66,6 +66,15 @@ tools: init ## Start core plus Portainer
 
 iot: init ## Start core plus Mosquitto and openHAB
 	@$(COMPOSE) --profile iot up -d
+
+apps: init ## Start core plus the Homepage dashboard and Dozzle log viewer
+	@$(COMPOSE) --profile apps up -d
+
+dns: init ## Start core plus AdGuard Home network DNS
+	@$(COMPOSE) --profile dns up -d
+
+updates: init ## Start core plus the Diun image update notifier
+	@$(COMPOSE) --profile updates up -d
 
 k6: init ## Run the bounded k6 smoke test against K6_TARGET_URL
 	@$(COMPOSE) up -d whoami

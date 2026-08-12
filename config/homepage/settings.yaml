@@ -1,0 +1,8 @@
+---
+title: "{{HOMEPAGE_VAR_TITLE}}"
+language: en
+theme: dark
+color: slate
+headerStyle: clean
+statusStyle: "dot"
+hideVersion: true

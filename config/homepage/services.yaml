@@ -1,0 +1,33 @@
+---
+- Infrastructure:
+    - Traefik dashboard:
+        href: http://traefik.{{HOMEPAGE_VAR_BASE_DOMAIN}}/dashboard/
+        description: Reverse proxy routers and middlewares
+    - Dozzle:
+        href: http://dozzle.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Live container log viewer
+    - Portainer:
+        href: http://portainer.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Docker host administration
+    - AdGuard Home:
+        href: http://adguard.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Network-wide DNS filtering
+
+- Monitoring:
+    - Grafana:
+        href: http://grafana.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Metrics dashboards
+    - InfluxDB:
+        href: http://influxdb.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Time series database
+    - Netdata:
+        href: http://{{HOMEPAGE_VAR_BASE_DOMAIN}}:19999
+        description: Linux host metrics
+
+- Smart home:
+    - openHAB:
+        href: http://openhab.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Home automation
+    - whoami:
+        href: http://whoami.{{HOMEPAGE_VAR_BASE_DOMAIN}}
+        description: Request echo service

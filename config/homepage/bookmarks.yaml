@@ -1,0 +1,11 @@
+---
+- Documentation:
+    - This repository:
+        abbr: GH
+        href: https://github.com/646826/docker-compose-files
+    - Traefik:
+        abbr: TR
+        href: https://doc.traefik.io/traefik/
+    - Docker Compose:
+        abbr: DC
+        href: https://docs.docker.com/compose/

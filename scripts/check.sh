@@ -67,7 +67,7 @@ create_placeholder grafana_admin_password ci-password
 create_placeholder traefik_users 'ci:$2y$12$placeholder'
 create_placeholder mosquitto_passwords 'ci:$7$220000$placeholder$placeholder'
 
-PROFILES="--profile monitoring --profile tools --profile iot --profile netdata --profile test"
+PROFILES="--profile monitoring --profile tools --profile iot --profile netdata --profile test --profile apps --profile dns --profile updates"
 docker compose --env-file .env.example $PROFILES config --quiet
 
 for image in $(docker compose --env-file .env.example $PROFILES config --images); do
