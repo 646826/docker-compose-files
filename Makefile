@@ -15,7 +15,7 @@ init: ## Create .env and missing local secrets without overwriting existing valu
 	@./scripts/init.sh
 
 check: ## Validate static files, bootstrap behavior, shell scripts, and the full Compose model
-	@./scripts/check.sh
+	@sh ./scripts/check.sh
 
 check-images: ## Verify pinned image tags and amd64/arm64 registry manifests
 	@python3 scripts/check_images.py
