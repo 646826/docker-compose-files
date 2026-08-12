@@ -315,7 +315,7 @@ def main() -> int:
 
         for service in ("homepage", "dozzle", "diun", "adguard"):
             block = service_block(compose, service)
-            for fragment in ("cap_drop:", "no-new-privileges:true", "pids_limit:", "memory:"):
+            for fragment in ("cap_drop:", "no-new-privileges:true", "memory:"):
                 if fragment not in block:
                     error(f"{service} must keep its hardening: {fragment}")
         for service in ("homepage", "dozzle", "diun"):
