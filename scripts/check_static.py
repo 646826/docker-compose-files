@@ -132,6 +132,11 @@ def main() -> int:
         "config/grafana/provisioning/dashboards/default.yaml",
         "config/grafana/dashboards/host-overview.json",
         "config/k6/smoke.js",
+        "config/homepage/settings.yaml",
+        "config/homepage/services.yaml",
+        "config/homepage/widgets.yaml",
+        "config/homepage/bookmarks.yaml",
+        "config/traefik/dynamic/middlewares.yaml",
         "scripts/init.sh",
         "scripts/check.sh",
         "scripts/check_images.py",
@@ -186,12 +191,16 @@ def main() -> int:
             "mosquitto",
             "openhab",
             "k6",
+            "homepage",
+            "dozzle",
+            "diun",
+            "adguard",
         )
         for service in services:
             if not service_block(compose, service):
                 error(f"required service is missing: {service}")
 
-        for profile in ("monitoring", "tools", "iot", "netdata", "test"):
+        for profile in ("monitoring", "tools", "iot", "netdata", "test", "apps", "dns", "updates"):
             if not re.search(rf"profiles:\s*\[[^\]]*\b{profile}\b", compose):
                 error(f"required Compose profile is missing: {profile}")
 
@@ -216,6 +225,9 @@ def main() -> int:
             "name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_addons",
             "name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_conf",
             "name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_userdata",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_adguard_conf",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_adguard_work",
+            "name: ${HOMELAB_PROJECT_NAME:-homelab}_diun_data",
         )
         for fragment in runtime_interpolation:
             if fragment not in compose:
@@ -283,6 +295,41 @@ def main() -> int:
         if "/run/mosquitto:mode=0700,uid=1883,gid=1883" not in mosquitto_block:
             error("Mosquitto must keep its runtime password file in a private tmpfs")
 
+        socket_proxy = service_block(compose, "docker-socket-proxy")
+        for section in ('IMAGES: "1"', 'LOGS: "1"'):
+            if section not in socket_proxy:
+                error(f"socket proxy must expose the read-only API section: {section}")
+
+        for fragment in (
+            "--providers.file.directory=/etc/traefik/dynamic",
+            "--providers.file.watch=true",
+            "--entrypoints.web.http.middlewares=sec-headers@file,ratelimit@file,compress@file",
+            "./config/traefik/dynamic:/etc/traefik/dynamic:ro",
+        ):
+            if fragment not in traefik:
+                error(f"Traefik file-provider middleware wiring is missing: {fragment}")
+
+        for service in services:
+            if "logging: *default-logging" not in service_block(compose, service):
+                error(f"service must apply the shared log rotation anchor: {service}")
+
+        for service in ("homepage", "dozzle", "diun", "adguard"):
+            block = service_block(compose, service)
+            for fragment in ("cap_drop:", "no-new-privileges:true", "pids_limit:", "memory:"):
+                if fragment not in block:
+                    error(f"{service} must keep its hardening: {fragment}")
+        for service in ("homepage", "dozzle", "diun"):
+            if "read_only: true" not in service_block(compose, service):
+                error(f"{service} must keep a read-only root filesystem")
+        if "NET_BIND_SERVICE" not in service_block(compose, "adguard"):
+            error("AdGuard Home must receive only NET_BIND_SERVICE")
+        for service in ("dozzle", "diun"):
+            if "restart: true" not in service_block(compose, service):
+                error(f"{service} must restart together with the socket proxy dependency")
+        for service in ("docker-socket-proxy", "traefik", "influxdb", "grafana"):
+            if "start_interval:" not in service_block(compose, service):
+                error(f"{service} healthcheck must keep start_interval")
+
     runtime_override = read_required("compose.runtime.yaml")
     if runtime_override:
         expected_tmpfs = {
@@ -309,6 +356,9 @@ def main() -> int:
             "HTTP_HOST_IP=0.0.0.0",
             "MQTT_HOST_IP=0.0.0.0",
             "NETDATA_PORT=19999",
+            "DNS_HOST_IP=0.0.0.0",
+            "ADGUARD_SETUP_HOST_IP=127.0.0.1",
+            "DIUN_SCHEDULE=",
         ):
             if setting not in env_example:
                 error(f".env.example is missing runtime isolation default: {setting}")
@@ -338,6 +388,9 @@ def main() -> int:
             "netdata",
             "tools",
             "iot",
+            "apps",
+            "dns",
+            "updates",
             "k6",
             "pull",
             "ps",
@@ -389,6 +442,9 @@ def main() -> int:
         for command in required_fast_checks:
             if command not in check_script:
                 error(f"scripts/check.sh must run: {command}")
+        for profile_flag in ("--profile apps", "--profile dns", "--profile updates"):
+            if profile_flag not in check_script:
+                error(f"scripts/check.sh must validate the Compose model with {profile_flag}")
 
     image_checker = read_required("scripts/check_images.py")
     if image_checker:
@@ -399,6 +455,9 @@ def main() -> int:
             error("image checker must create reversible Compose secret placeholders")
         if 'imagetools", "inspect", "--raw' not in image_checker:
             error("image checker must inspect raw registry manifests through Buildx")
+        for profile_name in ('"apps",', '"dns",', '"updates",'):
+            if profile_name not in image_checker:
+                error(f"image checker must render the {profile_name} profile images")
 
     runtime_script = read_required("scripts/check_runtime.sh")
     if runtime_script:
@@ -462,6 +521,19 @@ def main() -> int:
         for fragment in required_verification_docs:
             if fragment not in readme:
                 error(f"README verification model is missing: {fragment}")
+        for fragment in ("make apps", "make dns", "make updates"):
+            if fragment not in readme:
+                error(f"README must document the new profile command: {fragment}")
+
+    homepage_services = read_required("config/homepage/services.yaml")
+    if homepage_services and "HOMEPAGE_VAR_BASE_DOMAIN" not in homepage_services:
+        error("Homepage services must derive hostnames from HOMEPAGE_VAR_BASE_DOMAIN")
+
+    middlewares_config = read_required("config/traefik/dynamic/middlewares.yaml")
+    if middlewares_config:
+        for fragment in ("sec-headers:", "ratelimit:", "compress:", "rateLimit:", "headers:"):
+            if fragment not in middlewares_config:
+                error(f"Traefik dynamic middlewares are missing: {fragment}")
 
     k3s_doc = read_required("docs/K3S.md")
     if k3s_doc:
