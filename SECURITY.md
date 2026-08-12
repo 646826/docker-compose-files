@@ -26,9 +26,12 @@ Deleting a secret from the latest commit does not remove it from Git history. Hi
 
 ## Privileged interfaces
 
-Most containers receive no Docker socket and use `no-new-privileges` where compatible. Three components require special attention:
+Most containers receive no Docker socket and use `no-new-privileges` where compatible. The following components require special attention:
 
-- `docker-socket-proxy` holds the socket and exposes only selected read API sections on an internal Docker network;
+- `docker-socket-proxy` holds the socket and exposes only selected read-only API sections (containers, images, logs, events, info, networks, services, tasks, version, ping) on an internal Docker network, with POST requests disabled so nothing can mutate the daemon through it;
+- Dozzle reads container logs through the socket proxy and receives no other Docker API access;
+- Diun inspects images through the socket proxy and cannot mutate anything, so it remains a notification-only update checker;
+- AdGuard Home drops all capabilities and receives back only `NET_BIND_SERVICE` to bind the DNS port;
 - Portainer mounts the socket directly because its purpose is full host administration;
 - Netdata uses documented host mounts, capabilities, host network/PID, and a read-only Docker socket for full host observability.
 
