@@ -235,9 +235,12 @@ def main() -> int:
 
         for image in sorted(images):
             print(f"Checking {image}", flush=True)
+            # Docker Hub rate-limits anonymous manifest requests from shared
+            # CI egress IPs, so ride out short throttling windows.
             raw_manifest = run_command(
                 ("docker", "buildx", "imagetools", "inspect", "--raw", image),
-                attempts=3,
+                attempts=5,
+                retry_delays=(2, 5, 15, 30),
             )
             platforms = manifest_platforms(raw_manifest)
             missing = missing_platforms(platforms, REQUIRED_PLATFORMS)
