@@ -2,7 +2,7 @@
 
 A simple, reproducible, and secure homelab stack for Linux `amd64` and `arm64`.
 
-The repository preserves all previous capabilities—Traefik, InfluxDB, Telegraf, Grafana, and Portainer—and completes the explicitly planned integrations: Netdata, Eclipse Mosquitto, openHAB, k6, and separate k3s guidance.
+The repository preserves all previous capabilities—Traefik, InfluxDB, Telegraf, Grafana, and Portainer—and completes the explicitly planned integrations: Netdata, Eclipse Mosquitto, openHAB, k6, and separate k3s guidance. The opt-in `apps`, `dns`, and `updates` profiles add the Homepage dashboard with the Dozzle log viewer, AdGuard Home network DNS, and the Diun image update notifier.
 
 ## What changed
 
@@ -20,7 +20,13 @@ The repository preserves all previous capabilities—Traefik, InfluxDB, Telegraf
 - a separate IoT runtime smoke test for MQTT authentication and persistence, plus openHAB readiness;
 - an isolated optional-profile runtime test for Netdata host metrics and the committed k6 smoke script;
 - verifiable cold backup and restore for named volumes, with a manifest, checksums, and a real CI round trip;
-- k3s kept separate from Compose so the basic stack does not become a complex platform.
+- k3s kept separate from Compose so the basic stack does not become a complex platform;
+- a Homepage dashboard and Dozzle log viewer under the opt-in `apps` profile;
+- AdGuard Home network DNS under the opt-in `dns` profile;
+- a Diun image update notifier under the opt-in `updates` profile;
+- entrypoint-wide security headers, rate limiting, and compression through the Traefik file provider;
+- per-service log rotation and resource limits;
+- Security jobs in the CI workflow with strict Gitleaks secret scanning and an advisory Trivy configuration audit.
 
 ## Requirements
 
@@ -60,6 +66,11 @@ make up
 | Netdata | `http://localhost:${NETDATA_PORT}` (`19999` by default) | `make full` / `make netdata` |
 | openHAB | `http://openhab.localhost` | `make full` / `make iot` |
 | Mosquitto | `mqtt://localhost:1883` | `make full` / `make iot` |
+| Homepage | `http://homepage.localhost` | `make apps` / `make full` |
+| Dozzle | `http://dozzle.localhost` | `make apps` / `make full` |
+| AdGuard Home admin | `http://adguard.localhost` | `make dns` / `make full` |
+| AdGuard Home setup wizard | `http://127.0.0.1:${ADGUARD_SETUP_PORT}` (`3000` by default) | `make dns` / `make full` |
+| Diun | log-based notifier, no web UI | `make updates` / `make full` |
 
 The domain, bind addresses, HTTP port, MQTT port, Netdata port, and time zone are configured in `.env`. `HTTP_HOST_IP` and `MQTT_HOST_IP` default to `0.0.0.0`; set them to `127.0.0.1` to publish the corresponding port only on the local host. `NETDATA_PORT` defaults to `19999`; Netdata uses host networking, so choose another free port when that listener is already occupied. `HOMELAB_PROJECT_NAME` sets the common prefix for the project, networks, and volumes; the default `homelab` preserves the previous names. For access from another computer, configure local DNS or hosts-file entries for the selected `BASE_DOMAIN`.
 
@@ -76,6 +87,9 @@ The domain, bind addresses, HTTP port, MQTT port, Netdata port, and time zone ar
 | `make netdata` | start only Netdata for host monitoring |
 | `make tools` | start core + Portainer |
 | `make iot` | start core + Mosquitto + openHAB |
+| `make apps` | start core + the Homepage dashboard and Dozzle log viewer |
+| `make dns` | start core + AdGuard Home network DNS |
+| `make updates` | start core + the Diun image update notifier |
 | `make k6` | run a bounded 10-second smoke test |
 | `make pull` | pull the selected versions of all images |
 | `make ps` | show containers from all profiles |
@@ -129,6 +143,9 @@ Do not add `.env` or `.secrets/` to Git, backups, or logs without encryption.
 - **`tools`:** Portainer.
 - **`iot`:** Mosquitto 2.1 with password-file and SQLite plugins, plus openHAB.
 - **`test`:** disposable k6.
+- **`apps`:** Homepage dashboard and Dozzle log viewer.
+- **`dns`:** AdGuard Home network DNS filtering.
+- **`updates`:** Diun image update notifier.
 
 Networks are separated by purpose. With the default `HOMELAB_PROJECT_NAME=homelab`, their names remain unchanged:
 
@@ -154,6 +171,10 @@ Networks are separated by purpose. With the default `HOMELAB_PROJECT_NAME=homela
 | Eclipse Mosquitto | `2.1.2` |
 | openHAB | `5.2.0` |
 | k6 | `2.1.0` |
+| Homepage | `1.13.2` |
+| Dozzle | `10.7.1` |
+| Diun | `4.33.0` |
+| AdGuard Home | `0.107.78` |
 
 Renovate proposes updates in separate pull requests; updates are not applied automatically.
 
@@ -184,6 +205,26 @@ The bridge network and Traefik provide a portable, secure default. Some bindings
 ### TLS
 
 The local default uses HTTP and `*.localhost`. Automatic public TLS is not enabled because it requires a real domain, DNS, and a selected ACME challenge. Add it through a deployment-specific override instead of storing a fictitious universal configuration.
+
+### Homepage
+
+`HOMEPAGE_ALLOWED_HOSTS` includes the routed hostname plus `localhost` and `127.0.0.1` for health probes. The dashboard is served behind the shared Traefik Basic Auth like whoami, and its title is configured through `HOMEPAGE_TITLE` in `.env`.
+
+### Dozzle
+
+Dozzle reads container logs through the socket proxy only; the proxy now also exposes the read-only `LOGS` and `IMAGES` API sections, and no write API is available. Analytics are disabled through `DOZZLE_NO_ANALYTICS`, and the log verbosity is configured through `DOZZLE_LOG_LEVEL`.
+
+### Diun
+
+Diun is notification-only by design. It cannot update containers because the socket proxy has POST disabled. Apply updates with `make pull` and a restart, or review Renovate pull requests. Tune `DIUN_SCHEDULE` (a six-field cron expression, `0 0 6 * * *` by default) and add `DIUN_NOTIF_*` variables in `.env` for alerts.
+
+### AdGuard Home
+
+The first-run wizard is published on `127.0.0.1:${ADGUARD_SETUP_PORT}` (`3000` by default); after setup the admin UI is served through Traefik on `adguard.${BASE_DOMAIN}` with AdGuard's own login. Only the `NET_BIND_SERVICE` capability is added on top of `cap_drop: ALL`; DNS on port 53 (TCP and UDP) binds through `DNS_HOST_IP` and `DNS_PORT`. Set `DNS_HOST_IP=127.0.0.1` to keep DNS local-only.
+
+### Traefik middlewares
+
+Every router on the `web` entrypoint now receives security headers, a per-source-IP rate limit (average 100 requests per second, burst 50), and gzip compression from `config/traefik/dynamic/middlewares.yaml` through the Traefik file provider.
 
 ## k3s
 
@@ -281,3 +322,5 @@ The check verifies:
 - guaranteed scoped cleanup of the unique project and its volumes.
 
 The check downloads missing Netdata, whoami, and k6 layers and is intended only for Linux Docker Engine because Netdata uses host networking, the host PID namespace, Linux capabilities, and read-only host mounts. It does not read deployment `.env` or `.secrets/` and does not enroll the temporary agent in Netdata Cloud.
+
+In addition, the Security jobs in the CI workflow (`.github/workflows/ci.yml`) run on every push to `main` and `feat/**` branches, on pull requests, weekly, and on demand: Gitleaks scans the tracked tree for committed secrets strictly and fails the job on any finding, while the Trivy configuration audit of the Compose and workflow files is advisory and reports HIGH/CRITICAL misconfigurations without blocking merges.
