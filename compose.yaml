@@ -371,7 +371,6 @@ services:
     tmpfs:
       - /tmp
       - /app/.next/cache
-    pids_limit: 200
     deploy:
       resources:
         limits:
@@ -408,7 +407,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-    pids_limit: 100
     deploy:
       resources:
         limits:
@@ -459,7 +457,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-    pids_limit: 100
     deploy:
       resources:
         limits:
@@ -492,7 +489,6 @@ services:
       - ALL
     cap_add:
       - NET_BIND_SERVICE
-    pids_limit: 200
     deploy:
       resources:
         limits:
