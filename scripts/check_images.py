@@ -16,6 +16,8 @@ from typing import Iterator, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 INIT_SCRIPT = ROOT / "scripts" / "init.sh"
+# All Compose profiles, including apps, dns, and updates, so every pinned
+# image is covered by the registry manifest check.
 PROFILES = (
     "--profile",
     "monitoring",
