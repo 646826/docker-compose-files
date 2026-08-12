@@ -256,7 +256,7 @@ This runs static policies, unit and behavior tests, shell syntax checks, and val
 make check-images
 ```
 
-This retrieves only registry manifests through Docker Buildx; it does not download image layers or start services. The check fails when a tag does not exist or an image does not publish both maintained variants: `linux/amd64` and `linux/arm64`.
+This retrieves only registry manifests through Docker Buildx; it does not download image layers or start services. The check fails when a tag does not exist or an image does not publish both maintained variants: `linux/amd64` and `linux/arm64`. Anonymous registry requests from shared CI egress addresses can be throttled; the check retries with backoff, and re-running the workflow after a short wait clears transient throttling.
 
 ### 3. Isolated default-stack runtime check
 
