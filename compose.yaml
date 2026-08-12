@@ -1,12 +1,21 @@
 name: ${HOMELAB_PROJECT_NAME:-homelab}
 
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 services:
   docker-socket-proxy:
     image: tecnativa/docker-socket-proxy:v0.4.2
     restart: unless-stopped
+    logging: *default-logging
     environment:
       CONTAINERS: "1"
       EVENTS: "1"
+      IMAGES: "1"
+      LOGS: "1"
       INFO: "1"
       NETWORKS: "1"
       PING: "1"
@@ -27,10 +36,12 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
+      start_interval: 5s
 
   traefik:
     image: traefik:v3.7.8
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       docker-socket-proxy:
         condition: service_healthy
@@ -45,10 +56,15 @@ services:
       - --entrypoints.web.address=:80
       - --accesslog=true
       - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.http.middlewares=sec-headers@file,ratelimit@file,compress@file
     ports:
       - "${HTTP_HOST_IP:-0.0.0.0}:${HTTP_PORT:-80}:80"
     secrets:
       - traefik_users
+    volumes:
+      - ./config/traefik/dynamic:/etc/traefik/dynamic:ro
     networks:
       - proxy
       - socket
@@ -63,6 +79,7 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
+      start_interval: 5s
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
@@ -75,6 +92,7 @@ services:
   whoami:
     image: traefik/whoami:v1.11.0
     restart: unless-stopped
+    logging: *default-logging
     networks:
       - proxy
     security_opt:
@@ -92,6 +110,7 @@ services:
     image: influxdb:2.9.1-alpine
     profiles: [monitoring]
     restart: unless-stopped
+    logging: *default-logging
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME_FILE: /run/secrets/influxdb_username
@@ -118,6 +137,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+      start_interval: 5s
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
@@ -129,6 +149,7 @@ services:
     image: telegraf:1.39.1-alpine
     profiles: [monitoring]
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       docker-socket-proxy:
         condition: service_healthy
@@ -157,6 +178,7 @@ services:
     image: grafana/grafana:13.1.0
     profiles: [monitoring]
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       influxdb:
         condition: service_healthy
@@ -193,6 +215,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+      start_interval: 5s
     labels:
       traefik.enable: "true"
       traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
@@ -204,6 +227,7 @@ services:
     image: portainer/portainer-ce:2.39.5-alpine
     profiles: [tools]
     restart: unless-stopped
+    logging: *default-logging
     command: --http-enabled
     volumes:
       - portainer_data:/data
@@ -223,6 +247,7 @@ services:
     image: netdata/netdata:v2.10.3
     profiles: [netdata]
     restart: unless-stopped
+    logging: *default-logging
     hostname: ${NETDATA_HOSTNAME:-homelab}
     environment:
       NETDATA_LISTENER_PORT: ${NETDATA_PORT:-19999}
@@ -252,6 +277,7 @@ services:
     image: eclipse-mosquitto:2.1.2-alpine
     profiles: [iot]
     restart: unless-stopped
+    logging: *default-logging
     entrypoint:
       - /bin/ash
       - -euc
@@ -278,6 +304,7 @@ services:
     image: openhab/openhab:5.2.0
     profiles: [iot]
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       - mosquitto
     environment:
@@ -306,6 +333,7 @@ services:
   k6:
     image: grafana/k6:2.1.0
     profiles: [test]
+    logging: *default-logging
     depends_on:
       - whoami
     command: run /scripts/smoke.js
@@ -320,6 +348,161 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+
+  homepage:
+    image: gethomepage/homepage:v1.13.2
+    profiles: [apps]
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: homepage.${BASE_DOMAIN:-localhost},localhost,127.0.0.1
+      HOMEPAGE_VAR_TITLE: ${HOMEPAGE_TITLE:-Homelab}
+      HOMEPAGE_VAR_BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      - ./config/homepage:/app/config:ro
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    pids_limit: 200
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.homepage.rule: Host(`homepage.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.homepage.entrypoints: web
+      traefik.http.routers.homepage.middlewares: local-auth@docker
+      traefik.http.services.homepage.loadbalancer.server.port: "3000"
+
+  dozzle:
+    image: amir20/dozzle:v10.7.1
+    profiles: [apps]
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      docker-socket-proxy:
+        condition: service_healthy
+        restart: true
+    environment:
+      DOZZLE_REMOTE_HOST: tcp://docker-socket-proxy:2375
+      DOZZLE_LEVEL: ${DOZZLE_LOG_LEVEL:-info}
+      DOZZLE_NO_ANALYTICS: "true"
+      TZ: ${TZ:-Etc/UTC}
+    networks:
+      - proxy
+      - socket
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 100
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "/dozzle", "healthcheck"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+      start_interval: 2s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.dozzle.rule: Host(`dozzle.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.dozzle.entrypoints: web
+      traefik.http.routers.dozzle.middlewares: local-auth@docker
+      traefik.http.services.dozzle.loadbalancer.server.port: "8080"
+
+  diun:
+    image: crazymax/diun:4.33.0
+    profiles: [updates]
+    restart: unless-stopped
+    logging: *default-logging
+    command: serve
+    depends_on:
+      docker-socket-proxy:
+        condition: service_healthy
+        restart: true
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      LOG_LEVEL: ${DIUN_LOG_LEVEL:-info}
+      LOG_JSON: "false"
+      DIUN_WATCH_SCHEDULE: ${DIUN_SCHEDULE:-0 0 6 * * *}
+      DIUN_WATCH_JITTER: 30s
+      DIUN_PROVIDERS_DOCKER: "true"
+      DIUN_PROVIDERS_DOCKER_ENDPOINT: tcp://docker-socket-proxy:2375
+      DIUN_PROVIDERS_DOCKER_WATCHBYDEFAULT: "true"
+    volumes:
+      - diun_data:/data
+    networks:
+      - proxy
+      - socket
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 100
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "/diun", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      start_interval: 2s
+
+  adguard:
+    image: adguard/adguardhome:v0.107.78
+    profiles: [dns]
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "${DNS_HOST_IP:-0.0.0.0}:${DNS_PORT:-53}:53/tcp"
+      - "${DNS_HOST_IP:-0.0.0.0}:${DNS_PORT:-53}:53/udp"
+      - "${ADGUARD_SETUP_HOST_IP:-127.0.0.1}:${ADGUARD_SETUP_PORT:-3000}:3000/tcp"
+    volumes:
+      - adguard_conf:/opt/adguardhome/conf
+      - adguard_work:/opt/adguardhome/work
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    pids_limit: 200
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${HOMELAB_PROJECT_NAME:-homelab}_proxy
+      traefik.http.routers.adguard.rule: Host(`adguard.${BASE_DOMAIN:-localhost}`)
+      traefik.http.routers.adguard.entrypoints: web
+      traefik.http.services.adguard.loadbalancer.server.port: "80"
 
 networks:
   proxy:
@@ -356,6 +539,12 @@ volumes:
     name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_conf
   openhab_userdata:
     name: ${HOMELAB_PROJECT_NAME:-homelab}_openhab_userdata
+  adguard_conf:
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_adguard_conf
+  adguard_work:
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_adguard_work
+  diun_data:
+    name: ${HOMELAB_PROJECT_NAME:-homelab}_diun_data
 
 secrets:
   influxdb_username:

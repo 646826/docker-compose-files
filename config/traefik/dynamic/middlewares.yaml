@@ -1,0 +1,21 @@
+# Traefik dynamic configuration: entrypoint-wide middlewares for the web entrypoint.
+http:
+  middlewares:
+    sec-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin
+        permissionsPolicy:
+          camera: "()"
+          microphone: "()"
+          geolocation: "()"
+        customResponseHeaders:
+          X-Robots-Tag: noindex, nofollow
+    ratelimit:
+      rateLimit:
+        average: 100
+        period: 1s
+        burst: 50
+    compress:
+      compress: {}
