@@ -26,7 +26,7 @@ The repository preserves all previous capabilities—Traefik, InfluxDB, Telegraf
 - a Diun image update notifier under the opt-in `updates` profile;
 - entrypoint-wide security headers, rate limiting, and compression through the Traefik file provider;
 - per-service log rotation and resource limits;
-- Security jobs in the CI workflow with strict Gitleaks secret scanning and an advisory Trivy configuration audit.
+- an extended static policy gate that now also protects the new profiles, hardening rules, and Traefik middleware wiring.
 
 ## Requirements
 
@@ -322,5 +322,3 @@ The check verifies:
 - guaranteed scoped cleanup of the unique project and its volumes.
 
 The check downloads missing Netdata, whoami, and k6 layers and is intended only for Linux Docker Engine because Netdata uses host networking, the host PID namespace, Linux capabilities, and read-only host mounts. It does not read deployment `.env` or `.secrets/` and does not enroll the temporary agent in Netdata Cloud.
-
-In addition, the Security jobs in the CI workflow (`.github/workflows/ci.yml`) run on every push to `main` and `feat/**` branches, on pull requests, weekly, and on demand: Gitleaks scans the tracked tree for committed secrets strictly and fails the job on any finding, while the Trivy configuration audit of the Compose and workflow files is advisory and reports HIGH/CRITICAL misconfigurations without blocking merges.
